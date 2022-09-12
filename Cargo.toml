@@ -9,5 +9,5 @@ edition = "2021"
 thiserror = "1.0"
 
 [[bin]]
-name="bin"
+name="ccompiler"
 path="src/bin/main.rs"
