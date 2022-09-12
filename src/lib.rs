@@ -1,34 +1,10 @@
-use std::fmt::{Display, Write};
+mod error;
+mod token;
+
+use error::{CompileError, Result};
+use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
-
-#[derive(Debug)]
-pub enum CompileError {
-    FmtError(std::fmt::Error),
-    Unexpected { expect: TokenKind, result: Token },
-    Expected(TokenKind),
-    ParseError,
-}
-
-impl Display for CompileError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unexpected { expect, result } => {
-                write!(f, "expect: {}, find: {}", expect, result)
-            }
-            Self::Expected(expect) => write!(f, "expect {}", expect),
-            Self::ParseError => write!(f, "parse error"),
-            Self::FmtError(err) => write!(f, "{}", err),
-        }
-    }
-}
-
-impl From<std::fmt::Error> for CompileError {
-    fn from(err: std::fmt::Error) -> Self {
-        CompileError::FmtError(err)
-    }
-}
-
-pub type Result<T> = std::result::Result<T, CompileError>;
+use token::{tokenize, Operation, Token, TokenKind};
 
 pub fn to_num<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<u32> {
     let mut result = iter.next()?.to_digit(10)? as u32;
@@ -81,104 +57,9 @@ fn test_to_num() {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum TokenKind {
-    OP(Operation),
-    NUM(u32),
-}
-
-impl Display for TokenKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenKind::NUM(..) => write!(f, "Number"),
-            TokenKind::OP(op) => match op {
-                Operation::Add => write!(f, "Operation: +"),
-                Operation::Sub => write!(f, "Operation: -"),
-            },
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Operation {
-    Add,
-    Sub,
-}
-
-impl From<u32> for TokenKind {
-    fn from(num: u32) -> Self {
-        TokenKind::NUM(num)
-    }
-}
-
-impl From<Operation> for TokenKind {
-    fn from(op: Operation) -> Self {
-        TokenKind::OP(op)
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Token {
-    col: u32,
-    row: u32,
-    kind: TokenKind,
-}
-
-impl Token {
-    pub fn new(col: u32, row: u32, kind: TokenKind) -> Self {
-        Self { col, row, kind }
-    }
-}
-
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{} : {}", self.row, self.row, self.kind)
-    }
-}
-
-fn tokenize<I: Iterator<Item = char>>(source: &mut Peekable<I>) -> Result<Vec<Token>> {
-    let mut tokens = Vec::new();
-    let mut row = 1;
-    let mut col = 1;
-
-    while let Some(&s) = source.peek() {
-        match s {
-            '+' => {
-                tokens.push(Token::new(col, row, Operation::Add.into()));
-                source.next();
-                col += 1;
-            }
-            '-' => {
-                tokens.push(Token::new(col, row, Operation::Sub.into()));
-                source.next();
-                col += 1;
-            }
-            ' ' => {
-                col += 1;
-                source.next();
-            }
-            '\n' => {
-                col = 1;
-                row += 1;
-                source.next();
-            }
-            _ => {
-                if let Some((num, count)) = to_digits(source) {
-                    tokens.push(Token::new(col, row, num.into()));
-                    col += count;
-                } else {
-                    return Err(CompileError::ParseError);
-                }
-            }
-        }
-    }
-
-    Ok(tokens)
-}
-
 fn expect<I: Iterator<Item = Token>>(token: &mut I, expected: Operation) -> Result<Operation> {
     if let Some(t) = token.next() {
-        match t.kind {
+        match t.kind() {
             TokenKind::OP(operation) if operation == expected => return Ok(operation),
             TokenKind::OP(..) => {
                 return Err(CompileError::Unexpected {
@@ -199,7 +80,7 @@ fn expect<I: Iterator<Item = Token>>(token: &mut I, expected: Operation) -> Resu
 
 fn expect_number<I: Iterator<Item = Token>>(token: &mut I) -> Result<u32> {
     match token.next() {
-        Some(t) => match t.kind {
+        Some(t) => match t.kind() {
             TokenKind::NUM(num) => Ok(num),
             TokenKind::OP(..) => Err(CompileError::Unexpected {
                 expect: TokenKind::NUM(0),
@@ -212,7 +93,7 @@ fn expect_number<I: Iterator<Item = Token>>(token: &mut I) -> Result<u32> {
 
 fn consume<I: Iterator<Item = Token>>(token: &mut Peekable<I>, expected: Operation) -> bool {
     if let Some(t) = token.peek() {
-        match &t.kind {
+        match &t.kind() {
             TokenKind::OP(operation) if operation == &expected => {
                 token.next();
                 return true;
