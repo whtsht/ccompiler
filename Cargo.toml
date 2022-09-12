@@ -10,4 +10,4 @@ thiserror = "1.0"
 
 [[bin]]
 name="ccompiler"
-path="src/bin/main.rs"
+path="app/main.rs"
