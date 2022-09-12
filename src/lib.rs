@@ -1,23 +1,24 @@
-use std::fmt::Write;
+use std::fmt::{Display, Write};
 use std::iter::{Iterator, Peekable};
-use std::num::ParseIntError;
-use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum CompileError {
-    #[error("The number of arguments is incorrect")]
-    InvalidArgs,
-    #[error("Parse Error: number")]
-    Parse(ParseIntError),
-    #[error("Format Error")]
     FmtError(std::fmt::Error),
-    #[error("Unexpected input")]
-    Unexpected,
+    Unexpected { expect: TokenKind, result: Token },
+    Expected(TokenKind),
+    ParseError,
 }
 
-impl From<ParseIntError> for CompileError {
-    fn from(err: ParseIntError) -> Self {
-        CompileError::Parse(err)
+impl Display for CompileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unexpected { expect, result } => {
+                write!(f, "expect: {}, find: {}", expect, result)
+            }
+            Self::Expected(expect) => write!(f, "expect {}", expect),
+            Self::ParseError => write!(f, "parse error"),
+            Self::FmtError(err) => write!(f, "{}", err),
+        }
     }
 }
 
@@ -29,13 +30,13 @@ impl From<std::fmt::Error> for CompileError {
 
 pub type Result<T> = std::result::Result<T, CompileError>;
 
-pub fn to_num<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<usize> {
-    let mut result = iter.next()?.to_digit(10)? as usize;
+pub fn to_num<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<u32> {
+    let mut result = iter.next()?.to_digit(10)? as u32;
     loop {
         match iter.peek() {
             Some(c) => match c.to_digit(10) {
                 Some(i) => {
-                    result = result * 10 + i as usize;
+                    result = result * 10 + i as u32;
                     iter.next();
                 }
                 None => break,
@@ -44,6 +45,25 @@ pub fn to_num<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<usize>
         }
     }
     Some(result)
+}
+
+pub fn to_digits<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<(u32, u32)> {
+    let mut result = iter.next()?.to_digit(10)? as u32;
+    let mut count = 1;
+    loop {
+        match iter.peek() {
+            Some(c) => match c.to_digit(10) {
+                Some(i) => {
+                    result = result * 10 + i as u32;
+                    iter.next();
+                    count += 1;
+                }
+                None => break,
+            },
+            None => break,
+        }
+    }
+    Some((result, count))
 }
 
 #[test]
@@ -62,50 +82,92 @@ fn test_to_num() {
 }
 
 #[derive(Debug, PartialEq)]
-enum Token {
+pub enum TokenKind {
     OP(Operation),
-    NUM(usize),
+    NUM(u32),
+}
+
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenKind::NUM(..) => write!(f, "Number"),
+            TokenKind::OP(op) => match op {
+                Operation::Add => write!(f, "Operation: +"),
+                Operation::Sub => write!(f, "Operation: -"),
+            },
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
-enum Operation {
+pub enum Operation {
     Add,
     Sub,
 }
 
-impl From<usize> for Token {
-    fn from(num: usize) -> Self {
-        Token::NUM(num)
+impl From<u32> for TokenKind {
+    fn from(num: u32) -> Self {
+        TokenKind::NUM(num)
     }
 }
 
-impl From<Operation> for Token {
+impl From<Operation> for TokenKind {
     fn from(op: Operation) -> Self {
-        Token::OP(op)
+        TokenKind::OP(op)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Token {
+    col: u32,
+    row: u32,
+    kind: TokenKind,
+}
+
+impl Token {
+    pub fn new(col: u32, row: u32, kind: TokenKind) -> Self {
+        Self { col, row, kind }
+    }
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{} : {}", self.row, self.row, self.kind)
     }
 }
 
 fn tokenize<I: Iterator<Item = char>>(source: &mut Peekable<I>) -> Result<Vec<Token>> {
     let mut tokens = Vec::new();
+    let mut row = 1;
+    let mut col = 1;
 
     while let Some(&s) = source.peek() {
         match s {
             '+' => {
-                tokens.push(Operation::Add.into());
+                tokens.push(Token::new(col, row, Operation::Add.into()));
                 source.next();
+                col += 1;
             }
             '-' => {
-                tokens.push(Operation::Sub.into());
+                tokens.push(Token::new(col, row, Operation::Sub.into()));
+                source.next();
+                col += 1;
+            }
+            ' ' => {
+                col += 1;
                 source.next();
             }
-            '\n' | ' ' => {
+            '\n' => {
+                col = 1;
+                row += 1;
                 source.next();
             }
             _ => {
-                if let Some(num) = to_num(source) {
-                    tokens.push(num.into());
+                if let Some((num, count)) = to_digits(source) {
+                    tokens.push(Token::new(col, row, num.into()));
+                    col += count;
                 } else {
-                    return Err(CompileError::Unexpected);
+                    return Err(CompileError::ParseError);
                 }
             }
         }
@@ -116,26 +178,42 @@ fn tokenize<I: Iterator<Item = char>>(source: &mut Peekable<I>) -> Result<Vec<To
 
 fn expect<I: Iterator<Item = Token>>(token: &mut I, expected: Operation) -> Result<Operation> {
     if let Some(t) = token.next() {
-        match t {
-            Token::OP(operation) if operation == expected => return Ok(operation),
-            _ => return Err(CompileError::Unexpected),
+        match t.kind {
+            TokenKind::OP(operation) if operation == expected => return Ok(operation),
+            TokenKind::OP(..) => {
+                return Err(CompileError::Unexpected {
+                    expect: TokenKind::OP(expected),
+                    result: t,
+                })
+            }
+            TokenKind::NUM(num) => {
+                return Err(CompileError::Unexpected {
+                    expect: TokenKind::NUM(num),
+                    result: t,
+                })
+            }
         }
     }
-    Err(CompileError::Unexpected)
+    Err(CompileError::ParseError)
 }
 
-fn expect_number<I: Iterator<Item = Token>>(token: &mut I) -> Result<usize> {
-    if let Some(Token::NUM(num)) = token.next() {
-        return Ok(num);
-    } else {
-        return Err(CompileError::Unexpected);
+fn expect_number<I: Iterator<Item = Token>>(token: &mut I) -> Result<u32> {
+    match token.next() {
+        Some(t) => match t.kind {
+            TokenKind::NUM(num) => Ok(num),
+            TokenKind::OP(..) => Err(CompileError::Unexpected {
+                expect: TokenKind::NUM(0),
+                result: t,
+            }),
+        },
+        None => Err(CompileError::Expected(TokenKind::NUM(0))),
     }
 }
 
 fn consume<I: Iterator<Item = Token>>(token: &mut Peekable<I>, expected: Operation) -> bool {
     if let Some(t) = token.peek() {
-        match t {
-            Token::OP(operation) if operation == &expected => {
+        match &t.kind {
+            TokenKind::OP(operation) if operation == &expected => {
                 token.next();
                 return true;
             }
@@ -151,12 +229,36 @@ fn test_tokenize() {
     let tokens = tokenize(&mut source).unwrap();
     assert_eq!(
         tokens,
-        vec![Token::NUM(1), Token::OP(Operation::Add), Token::NUM(4)]
+        vec![
+            Token::new(1, 1, TokenKind::NUM(1)),
+            Token::new(2, 1, TokenKind::OP(Operation::Add)),
+            Token::new(3, 1, TokenKind::NUM(4)),
+        ]
     );
 
-    let mut source = "-23".chars().peekable();
+    let mut source = "-23+".chars().peekable();
     let tokens = tokenize(&mut source).unwrap();
-    assert_eq!(tokens, vec![Token::OP(Operation::Sub), Token::NUM(23)]);
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(1, 1, TokenKind::OP(Operation::Sub)),
+            Token::new(2, 1, TokenKind::NUM(23)),
+            Token::new(4, 1, TokenKind::OP(Operation::Add)),
+        ]
+    );
+
+    let mut source = "7+3\n-4".chars().peekable();
+    let tokens = tokenize(&mut source).unwrap();
+    assert_eq!(
+        tokens,
+        vec![
+            Token::new(1, 1, TokenKind::NUM(7)),
+            Token::new(2, 1, TokenKind::OP(Operation::Add)),
+            Token::new(3, 1, TokenKind::NUM(3)),
+            Token::new(1, 2, TokenKind::OP(Operation::Sub)),
+            Token::new(2, 2, TokenKind::NUM(4)),
+        ]
+    );
 }
 
 pub fn compile_from_source(source: String) -> Result<String> {
@@ -175,6 +277,7 @@ pub fn compile_from_source(source: String) -> Result<String> {
     while token.peek().is_some() {
         if consume(&mut token, Operation::Add) {
             writeln!(output, "  add rax, {}", expect_number(&mut token)?)?;
+            continue;
         }
 
         expect(&mut token, Operation::Sub)?;

@@ -7,6 +7,6 @@ fn main() {
 
     match compile_from_source(source) {
         Ok(dest) => println!("{}", dest),
-        Err(err) => println!("{:?}", err),
+        Err(err) => println!("{}", err),
     }
 }
