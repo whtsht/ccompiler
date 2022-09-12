@@ -28,7 +28,7 @@ fn assert_compiler(input: &str, expected: Option<i32>) {
         .unwrap();
 
     let output = Command::new("./tmp").output().unwrap();
-    assert_eq!(output.status.code(), expected);
+    assert_eq!(output.status.code(), expected, "{}", input);
 }
 
 #[test]
@@ -36,4 +36,5 @@ fn test_compiler() {
     assert_compiler("0", Some(0));
     assert_compiler("42", Some(42));
     assert_compiler("5+20-4", Some(21));
+    assert_compiler("12 + 34 - 5", Some(41));
 }
