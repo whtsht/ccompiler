@@ -4,10 +4,20 @@ use std::fmt::Display;
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum TokenKind {
     OP(Operation),
     NUM(u32),
+}
+
+impl PartialEq for TokenKind {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (&TokenKind::OP(ref lhs), &TokenKind::OP(ref rhs)) => lhs == rhs,
+            (&TokenKind::NUM(_), &TokenKind::NUM(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for TokenKind {
@@ -162,41 +172,37 @@ impl TokenStream {
         self.stream.peek().is_some()
     }
 
-    pub fn expect(&mut self, expected: Operation) -> Result<Operation> {
+    pub fn expect(&mut self, expect: TokenKind) -> Result<Token> {
         if let Some(token) = self.stream.next() {
-            match token.kind() {
-                TokenKind::OP(op) if op == expected => {
-                    self.token = token;
-                    Ok(op)
-                }
-                TokenKind::OP(result) => Err(CompileError::Unexpected {
+            if token.kind() == expect {
+                self.token = token.clone();
+                Ok(token)
+            } else {
+                Err(CompileError::Unexpected {
                     stop: self.token.clone(),
-                    expect: TokenKind::OP(expected),
-                    result: TokenKind::OP(result),
-                }),
-                TokenKind::NUM(num) => Err(CompileError::Unexpected {
-                    stop: self.token.clone(),
-                    expect: TokenKind::OP(expected),
-                    result: TokenKind::NUM(num),
-                }),
+                    expect,
+                    result: token.kind(),
+                })
             }
         } else {
             Err(CompileError::Expected {
                 stop: self.token.clone(),
-                expect: TokenKind::OP(expected),
+                expect,
             })
         }
     }
 
     pub fn expect_number(&mut self) -> Result<u32> {
         if let Some(token) = self.stream.next() {
-            match token.kind() {
-                TokenKind::OP(op) => Err(CompileError::Unexpected {
+            if let TokenKind::NUM(num) = token.kind() {
+                self.token = token.clone();
+                Ok(num)
+            } else {
+                Err(CompileError::Unexpected {
                     stop: self.token.clone(),
                     expect: TokenKind::NUM(0),
-                    result: TokenKind::OP(op),
-                }),
-                TokenKind::NUM(num) => Ok(num),
+                    result: token.kind(),
+                })
             }
         } else {
             Err(CompileError::Expected {

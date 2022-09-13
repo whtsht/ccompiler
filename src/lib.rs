@@ -2,6 +2,7 @@ mod error;
 mod node;
 mod token;
 
+use crate::token::TokenKind;
 use error::Result;
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
@@ -77,7 +78,7 @@ pub fn compile_from_source(source: String) -> Result<String> {
             continue;
         }
 
-        ts.expect(Operation::Sub)?;
+        ts.expect(TokenKind::OP(Operation::Sub))?;
 
         writeln!(output, "  sub rax, {}", ts.expect_number()?)?;
     }
