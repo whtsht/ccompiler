@@ -5,18 +5,38 @@ use std::fmt::Display;
 #[derive(Debug)]
 pub enum CompileError {
     FmtError(std::fmt::Error),
-    Unexpected { expect: TokenKind, result: Token },
-    Expected(TokenKind),
+    Unexpected {
+        stop: Token,
+        expect: TokenKind,
+        result: TokenKind,
+    },
+    Expected {
+        stop: Token,
+        expect: TokenKind,
+    },
     ParseError,
 }
 
 impl Display for CompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unexpected { expect, result } => {
-                write!(f, "expect: {}, find: {}", expect, result)
+            Self::Unexpected {
+                stop,
+                expect,
+                result,
+            } => {
+                write!(
+                    f,
+                    "{}:{} expect: {}, find: {}",
+                    stop.row(),
+                    stop.col(),
+                    expect,
+                    result
+                )
             }
-            Self::Expected(expect) => write!(f, "expect {}", expect),
+            Self::Expected { stop, expect } => {
+                write!(f, "{}:{} expect {}", stop.row(), stop.col(), expect)
+            }
             Self::ParseError => write!(f, "parse error"),
             Self::FmtError(err) => write!(f, "{}", err),
         }
