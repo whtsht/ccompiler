@@ -1,4 +1,5 @@
 mod error;
+mod node;
 mod token;
 
 use error::{CompileError, Result};
