@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::CResult;
 use crate::token::{TokenKind, TokenStream};
 
 #[derive(Debug)]
@@ -38,7 +38,7 @@ impl Node {
     }
 }
 
-pub fn expr(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
+pub fn expr(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     let mut node = mul(tokenstream)?;
     loop {
         if tokenstream.consume(TokenKind::Add) {
@@ -51,7 +51,7 @@ pub fn expr(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     }
 }
 
-pub fn mul(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
+pub fn mul(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     let mut node = unary(tokenstream)?;
     loop {
         if tokenstream.consume(TokenKind::Mul) {
@@ -64,7 +64,7 @@ pub fn mul(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     }
 }
 
-pub fn unary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
+pub fn unary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     if tokenstream.consume(TokenKind::Add) {
         return primary(tokenstream);
     }
@@ -78,7 +78,7 @@ pub fn unary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     primary(tokenstream)
 }
 
-pub fn primary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
+pub fn primary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     if tokenstream.consume(TokenKind::Lbr) {
         let node = expr(tokenstream)?;
         tokenstream.expect(TokenKind::Rbr)?;

@@ -3,7 +3,7 @@ mod node;
 mod token;
 
 use crate::node::Node;
-use error::Result;
+use error::CResult;
 use node::expr;
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
@@ -60,7 +60,7 @@ fn test_to_num() {
     }
 }
 
-pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
+pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
     if let TokenKind::Num(num) = node.kind() {
         writeln!(output, "  push {}", num)?;
         return Ok(());
@@ -88,7 +88,7 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
     Ok(())
 }
 
-pub fn compile_from_source(source: String) -> Result<String> {
+pub fn compile_from_source(source: String) -> CResult<String> {
     let source = source.chars().peekable();
 
     let mut output = String::new();

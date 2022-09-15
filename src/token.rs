@@ -1,4 +1,4 @@
-use crate::error::{CompileError, Result};
+use crate::error::{CResult, CompileError};
 use crate::to_digits;
 use std::fmt::Display;
 use std::iter::Peekable;
@@ -12,6 +12,18 @@ pub enum TokenKind {
     Div, //      /
     Lbr, //      (
     Rbr, //      )
+    /// Equal to | ==
+    Eqt,
+    /// Not equal to | !=
+    Nqt,
+    /// Less than | <
+    Let,
+    /// Greater than | >
+    Grt,
+    /// Less than or equal to | <=
+    Loe,
+    /// Greater than or equal to | >=
+    Goe,
     Num(u32),
 }
 
@@ -33,13 +45,19 @@ impl PartialEq for TokenKind {
 impl Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenKind::Num(..) => write!(f, "Number"),
+            TokenKind::Num(num) => write!(f, "Number {}", num),
             TokenKind::Add => write!(f, "Operation: +"),
             TokenKind::Sub => write!(f, "Operation: -"),
             TokenKind::Mul => write!(f, "Operation: *"),
             TokenKind::Div => write!(f, "Operation: /"),
             TokenKind::Lbr => write!(f, "Operation: ("),
             TokenKind::Rbr => write!(f, "Operation: )"),
+            TokenKind::Eqt => write!(f, "Operation: =="),
+            TokenKind::Nqt => write!(f, "Operation: !="),
+            TokenKind::Let => write!(f, "Operation: <"),
+            TokenKind::Grt => write!(f, "Operation: >"),
+            TokenKind::Loe => write!(f, "Operation: <="),
+            TokenKind::Goe => write!(f, "Operation: >="),
         }
     }
 }
@@ -91,7 +109,7 @@ pub struct TokenStream {
     stream: Peekable<IntoIter<Token>>,
 }
 
-pub fn tokenize<I: Iterator<Item = char>>(mut source: Peekable<I>) -> Result<TokenStream> {
+pub fn tokenize<I: Iterator<Item = char>>(mut source: Peekable<I>) -> CResult<TokenStream> {
     let mut tokens = Vec::new();
     let mut row = 1;
     let mut col = 1;
@@ -101,50 +119,61 @@ pub fn tokenize<I: Iterator<Item = char>>(mut source: Peekable<I>) -> Result<Tok
         return Err(CompileError::ParseError);
     }
 
+    let mut word = String::new();
     while let Some(&s) = source.peek() {
-        match s {
-            '+' => {
-                tokens.push(Token::new(col, row, 1, TokenKind::Add.into()));
+        word.push(s);
+        match &word[..] {
+            "+" => {
+                tokens.push(Token::new(col, row, 1, TokenKind::Add));
                 source.next();
+                word.clear();
                 col += 1;
             }
-            '-' => {
-                tokens.push(Token::new(col, row, 1, TokenKind::Sub.into()));
+            "-" => {
+                tokens.push(Token::new(col, row, 1, TokenKind::Sub));
                 source.next();
+                word.clear();
                 col += 1;
             }
-            '*' => {
-                tokens.push(Token::new(col, row, 1, TokenKind::Mul.into()));
+            "*" => {
+                tokens.push(Token::new(col, row, 1, TokenKind::Mul));
                 source.next();
+                word.clear();
                 col += 1;
             }
-            '/' => {
-                tokens.push(Token::new(col, row, 1, TokenKind::Div.into()));
+            "/" => {
+                tokens.push(Token::new(col, row, 1, TokenKind::Div));
                 source.next();
+                word.clear();
                 col += 1;
             }
-            '(' => {
-                tokens.push(Token::new(col, row, 1, TokenKind::Lbr.into()));
+            "(" => {
+                tokens.push(Token::new(col, row, 1, TokenKind::Lbr));
                 source.next();
+                word.clear();
                 col += 1;
             }
-            ')' => {
-                tokens.push(Token::new(col, row, 1, TokenKind::Rbr.into()));
+            ")" => {
+                tokens.push(Token::new(col, row, 1, TokenKind::Rbr));
                 source.next();
+                word.clear();
                 col += 1;
             }
-            ' ' => {
+            " " => {
                 col += 1;
                 source.next();
+                word.clear();
             }
-            '\n' => {
+            "\n" => {
                 col = 1;
                 row += 1;
                 source.next();
+                word.clear();
             }
             _ => {
                 if let Some((num, count)) = to_digits(&mut source) {
                     tokens.push(Token::new(col, row, count, TokenKind::Num(num)));
+                    word.clear();
                     col += count;
                 } else {
                     return Err(CompileError::ParseError);
@@ -193,7 +222,7 @@ fn testrunner_tokenize() {
 }
 
 impl TokenStream {
-    pub fn expect(&mut self, expect: TokenKind) -> Result<()> {
+    pub fn expect(&mut self, expect: TokenKind) -> CResult<()> {
         if let Some(token) = self.stream.next() {
             if token.kind() == expect {
                 Ok(())
@@ -212,7 +241,7 @@ impl TokenStream {
         }
     }
 
-    pub fn expect_number(&mut self) -> Result<u32> {
+    pub fn expect_number(&mut self) -> CResult<u32> {
         if let Some(token) = self.stream.next() {
             if let TokenKind::Num(num) = token.kind() {
                 self.token = token.clone();

@@ -1,4 +1,5 @@
-pub type Result<T> = std::result::Result<T, CompileError>;
+pub type CResult<T> = std::result::Result<T, CompileError>;
+
 use crate::token::{Token, TokenKind};
 use std::fmt::Display;
 
