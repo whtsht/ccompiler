@@ -2,11 +2,12 @@ mod error;
 mod node;
 mod token;
 
-use crate::token::TokenKind;
+use crate::node::Node;
 use error::Result;
+use node::{expr, NodeKind};
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
-use token::{tokenize, Operation};
+use token::tokenize;
 
 pub fn to_num<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<u32> {
     let mut result = iter.next()?.to_digit(10)? as u32;
@@ -59,30 +60,49 @@ fn test_to_num() {
     }
 }
 
+pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
+    if let NodeKind::Num(num) = node.kind() {
+        writeln!(output, "  push {}", num)?;
+        return Ok(());
+    }
+
+    gen(node.lhs().unwrap(), output)?;
+    gen(node.rhs().unwrap(), output)?;
+
+    writeln!(output, "  pop rdi")?;
+    writeln!(output, "  pop rax")?;
+
+    match node.kind() {
+        NodeKind::Add => writeln!(output, "  add rax, rdi")?,
+        NodeKind::Sub => writeln!(output, "  sub rax, rdi")?,
+        NodeKind::Mul => writeln!(output, "  imul rax, rdi")?,
+        NodeKind::Div => {
+            writeln!(output, "  cqo")?;
+            writeln!(output, "  idiv rdi")?;
+        }
+        _ => (),
+    }
+
+    writeln!(output, "  push rax")?;
+
+    Ok(())
+}
+
 pub fn compile_from_source(source: String) -> Result<String> {
     let source = source.chars().peekable();
 
     let mut output = String::new();
 
     let mut ts = tokenize(source)?;
+    let node = expr(&mut ts)?;
 
     writeln!(output, ".intel_syntax noprefix")?;
     writeln!(output, ".globl main")?;
     writeln!(output, "main:")?;
 
-    writeln!(output, "  mov rax, {}", ts.expect_number()?)?;
+    gen(&node, &mut output)?;
 
-    while ts.exist_next() {
-        if ts.consume(Operation::Add) {
-            writeln!(output, "  add rax, {}", ts.expect_number()?)?;
-            continue;
-        }
-
-        ts.expect(TokenKind::OP(Operation::Sub))?;
-
-        writeln!(output, "  sub rax, {}", ts.expect_number()?)?;
-    }
-
+    writeln!(output, "  pop rax")?;
     writeln!(output, "  ret")?;
 
     return Ok(output);
