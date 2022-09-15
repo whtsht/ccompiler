@@ -61,16 +61,30 @@ pub fn expr(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
 }
 
 pub fn mul(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
-    let mut node = primary(tokenstream)?;
+    let mut node = unary(tokenstream)?;
     loop {
         if tokenstream.consume(Operation::Mul) {
-            node = Node::op_node(NodeKind::Mul, node, primary(tokenstream)?);
+            node = Node::op_node(NodeKind::Mul, node, unary(tokenstream)?);
         } else if tokenstream.consume(Operation::Div) {
-            node = Node::op_node(NodeKind::Div, node, primary(tokenstream)?);
+            node = Node::op_node(NodeKind::Div, node, unary(tokenstream)?);
         } else {
             return Ok(node);
         }
     }
+}
+
+pub fn unary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
+    if tokenstream.consume(Operation::Add) {
+        return primary(tokenstream);
+    }
+    if tokenstream.consume(Operation::Sub) {
+        return Ok(Node::op_node(
+            NodeKind::Sub,
+            Node::num_node(0),
+            primary(tokenstream)?,
+        ));
+    }
+    primary(tokenstream)
 }
 
 pub fn primary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {

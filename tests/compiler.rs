@@ -40,4 +40,5 @@ fn test_compiler() {
     assert_compiler("5+6*7", Some(47));
     assert_compiler("5*(9-6)", Some(15));
     assert_compiler("(3+5)/2", Some(4));
+    assert_compiler("+10/(-2+7)", Some(2));
 }
