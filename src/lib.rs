@@ -4,10 +4,10 @@ mod token;
 
 use crate::node::Node;
 use error::Result;
-use node::{expr, NodeKind};
+use node::expr;
 use std::fmt::Write;
 use std::iter::{Iterator, Peekable};
-use token::tokenize;
+use token::{tokenize, TokenKind};
 
 pub fn to_num<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<u32> {
     let mut result = iter.next()?.to_digit(10)? as u32;
@@ -61,7 +61,7 @@ fn test_to_num() {
 }
 
 pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
-    if let NodeKind::Num(num) = node.kind() {
+    if let TokenKind::Num(num) = node.kind() {
         writeln!(output, "  push {}", num)?;
         return Ok(());
     }
@@ -73,10 +73,10 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
     writeln!(output, "  pop rax")?;
 
     match node.kind() {
-        NodeKind::Add => writeln!(output, "  add rax, rdi")?,
-        NodeKind::Sub => writeln!(output, "  sub rax, rdi")?,
-        NodeKind::Mul => writeln!(output, "  imul rax, rdi")?,
-        NodeKind::Div => {
+        TokenKind::Add => writeln!(output, "  add rax, rdi")?,
+        TokenKind::Sub => writeln!(output, "  sub rax, rdi")?,
+        TokenKind::Mul => writeln!(output, "  imul rax, rdi")?,
+        TokenKind::Div => {
             writeln!(output, "  cqo")?;
             writeln!(output, "  idiv rdi")?;
         }

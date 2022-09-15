@@ -1,24 +1,15 @@
 use crate::error::Result;
-use crate::token::{Operation, TokenStream};
-
-#[derive(Clone, Debug)]
-pub enum NodeKind {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Num(u32),
-}
+use crate::token::{TokenKind, TokenStream};
 
 #[derive(Debug)]
 pub struct Node {
-    kind: NodeKind,
+    kind: TokenKind,
     lhs: Option<Box<Node>>,
     rhs: Option<Box<Node>>,
 }
 
 impl Node {
-    pub fn kind(&self) -> NodeKind {
+    pub fn kind(&self) -> TokenKind {
         self.kind.clone()
     }
 
@@ -30,7 +21,7 @@ impl Node {
         self.rhs.as_ref()
     }
 
-    pub fn op_node(kind: NodeKind, lhs: Box<Node>, rhs: Box<Node>) -> Box<Node> {
+    pub fn op_node(kind: TokenKind, lhs: Box<Node>, rhs: Box<Node>) -> Box<Node> {
         Box::new(Self {
             kind,
             lhs: Some(lhs),
@@ -40,7 +31,7 @@ impl Node {
 
     pub fn num_node(val: u32) -> Box<Node> {
         Box::new(Self {
-            kind: NodeKind::Num(val),
+            kind: TokenKind::Num(val),
             lhs: None,
             rhs: None,
         })
@@ -50,10 +41,10 @@ impl Node {
 pub fn expr(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     let mut node = mul(tokenstream)?;
     loop {
-        if tokenstream.consume(Operation::Add) {
-            node = Node::op_node(NodeKind::Add, node, mul(tokenstream)?);
-        } else if tokenstream.consume(Operation::Sub) {
-            node = Node::op_node(NodeKind::Sub, node, mul(tokenstream)?);
+        if tokenstream.consume(TokenKind::Add) {
+            node = Node::op_node(TokenKind::Add, node, mul(tokenstream)?);
+        } else if tokenstream.consume(TokenKind::Sub) {
+            node = Node::op_node(TokenKind::Sub, node, mul(tokenstream)?);
         } else {
             return Ok(node);
         }
@@ -63,10 +54,10 @@ pub fn expr(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
 pub fn mul(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     let mut node = unary(tokenstream)?;
     loop {
-        if tokenstream.consume(Operation::Mul) {
-            node = Node::op_node(NodeKind::Mul, node, unary(tokenstream)?);
-        } else if tokenstream.consume(Operation::Div) {
-            node = Node::op_node(NodeKind::Div, node, unary(tokenstream)?);
+        if tokenstream.consume(TokenKind::Mul) {
+            node = Node::op_node(TokenKind::Mul, node, unary(tokenstream)?);
+        } else if tokenstream.consume(TokenKind::Div) {
+            node = Node::op_node(TokenKind::Div, node, unary(tokenstream)?);
         } else {
             return Ok(node);
         }
@@ -74,12 +65,12 @@ pub fn mul(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
 }
 
 pub fn unary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
-    if tokenstream.consume(Operation::Add) {
+    if tokenstream.consume(TokenKind::Add) {
         return primary(tokenstream);
     }
-    if tokenstream.consume(Operation::Sub) {
+    if tokenstream.consume(TokenKind::Sub) {
         return Ok(Node::op_node(
-            NodeKind::Sub,
+            TokenKind::Sub,
             Node::num_node(0),
             primary(tokenstream)?,
         ));
@@ -88,18 +79,10 @@ pub fn unary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
 }
 
 pub fn primary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
-    if tokenstream.consume(Operation::LBR) {
+    if tokenstream.consume(TokenKind::Lbr) {
         let node = expr(tokenstream)?;
-        tokenstream.expect(Operation::RBR)?;
+        tokenstream.expect(TokenKind::Rbr)?;
         return Ok(node);
     }
     return Ok(Node::num_node(tokenstream.expect_number()?));
 }
-
-//#[test]
-//fn testrunner_node() -> Result<()> {
-//    use crate::token::tokenize;
-//    let mut tokenstream = tokenize("3-2".chars().peekable())?;
-//    let node = expr(&mut tokenstream)?;
-//    Ok(())
-//}
