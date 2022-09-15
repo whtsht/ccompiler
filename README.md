@@ -8,7 +8,10 @@ expr
     := mul ("+" mul | "-" mul)*
 
 mul
-    := primary ("*" primary | "-" primary)*
+    := unary ("*" unary | "-" unary)*
+
+unary
+    := ("+" | "-")? primary
 
 primary
     := num | "(" expr ")"
