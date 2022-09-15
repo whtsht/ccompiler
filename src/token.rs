@@ -62,12 +62,18 @@ impl From<Operation> for TokenKind {
 pub struct Token {
     col: u32,
     row: u32,
+    len: u32,
     kind: TokenKind,
 }
 
 impl Token {
-    pub fn new(col: u32, row: u32, kind: TokenKind) -> Self {
-        Self { col, row, kind }
+    pub fn new(col: u32, row: u32, len: u32, kind: TokenKind) -> Self {
+        Self {
+            col,
+            row,
+            len,
+            kind,
+        }
     }
 
     pub fn col(&self) -> u32 {
@@ -76,6 +82,10 @@ impl Token {
 
     pub fn row(&self) -> u32 {
         self.row
+    }
+
+    pub fn len(&self) -> u32 {
+        self.len
     }
 
     pub fn kind(&self) -> TokenKind {
@@ -107,32 +117,32 @@ pub fn tokenize<I: Iterator<Item = char>>(mut source: Peekable<I>) -> Result<Tok
     while let Some(&s) = source.peek() {
         match s {
             '+' => {
-                tokens.push(Token::new(col, row, Operation::Add.into()));
+                tokens.push(Token::new(col, row, 1, Operation::Add.into()));
                 source.next();
                 col += 1;
             }
             '-' => {
-                tokens.push(Token::new(col, row, Operation::Sub.into()));
+                tokens.push(Token::new(col, row, 1, Operation::Sub.into()));
                 source.next();
                 col += 1;
             }
             '*' => {
-                tokens.push(Token::new(col, row, Operation::Mul.into()));
+                tokens.push(Token::new(col, row, 1, Operation::Mul.into()));
                 source.next();
                 col += 1;
             }
             '/' => {
-                tokens.push(Token::new(col, row, Operation::Div.into()));
+                tokens.push(Token::new(col, row, 1, Operation::Div.into()));
                 source.next();
                 col += 1;
             }
             '(' => {
-                tokens.push(Token::new(col, row, Operation::LBR.into()));
+                tokens.push(Token::new(col, row, 1, Operation::LBR.into()));
                 source.next();
                 col += 1;
             }
             ')' => {
-                tokens.push(Token::new(col, row, Operation::RBR.into()));
+                tokens.push(Token::new(col, row, 1, Operation::RBR.into()));
                 source.next();
                 col += 1;
             }
@@ -147,7 +157,7 @@ pub fn tokenize<I: Iterator<Item = char>>(mut source: Peekable<I>) -> Result<Tok
             }
             _ => {
                 if let Some((num, count)) = to_digits(&mut source) {
-                    tokens.push(Token::new(col, row, num.into()));
+                    tokens.push(Token::new(col, row, count, num.into()));
                     col += count;
                 } else {
                     return Err(CompileError::ParseError);
@@ -172,25 +182,25 @@ fn testrunner_tokenize() {
         }
     };
     let expect = vec![
-        Token::new(1, 1, TokenKind::NUM(1)),
-        Token::new(2, 1, TokenKind::OP(Operation::Add)),
-        Token::new(3, 1, TokenKind::NUM(4)),
+        Token::new(1, 1, 1, TokenKind::NUM(1)),
+        Token::new(2, 1, 1, TokenKind::OP(Operation::Add)),
+        Token::new(3, 1, 1, TokenKind::NUM(4)),
     ];
     test_tokenize("1+4", expect);
 
     let expect = vec![
-        Token::new(1, 1, TokenKind::OP(Operation::Sub)),
-        Token::new(2, 1, TokenKind::NUM(23)),
-        Token::new(4, 1, TokenKind::OP(Operation::Add)),
+        Token::new(1, 1, 1, TokenKind::OP(Operation::Sub)),
+        Token::new(2, 1, 2, TokenKind::NUM(23)),
+        Token::new(4, 1, 1, TokenKind::OP(Operation::Add)),
     ];
     test_tokenize("-23+", expect);
 
     let expect = vec![
-        Token::new(1, 1, TokenKind::NUM(7)),
-        Token::new(2, 1, TokenKind::OP(Operation::Add)),
-        Token::new(3, 1, TokenKind::NUM(3)),
-        Token::new(1, 2, TokenKind::OP(Operation::Sub)),
-        Token::new(2, 2, TokenKind::NUM(4)),
+        Token::new(1, 1, 1, TokenKind::NUM(7)),
+        Token::new(2, 1, 1, TokenKind::OP(Operation::Add)),
+        Token::new(3, 1, 1, TokenKind::NUM(3)),
+        Token::new(1, 2, 1, TokenKind::OP(Operation::Sub)),
+        Token::new(2, 2, 1, TokenKind::NUM(4)),
     ];
     test_tokenize("7+3\n-4", expect);
 }
@@ -238,6 +248,7 @@ impl TokenStream {
         if let Some(token) = self.stream.peek() {
             match token.kind() {
                 TokenKind::OP(op) if op == expect => {
+                    self.token = token.clone();
                     self.stream.next();
                     true
                 }

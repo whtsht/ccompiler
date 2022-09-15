@@ -29,13 +29,19 @@ impl Display for CompileError {
                     f,
                     "{}:{} expect: {}, find: {}",
                     stop.row(),
-                    stop.col(),
+                    stop.col() + stop.len(),
                     expect,
                     result
                 )
             }
             Self::Expected { stop, expect } => {
-                write!(f, "{}:{} expect {}", stop.row(), stop.col(), expect)
+                write!(
+                    f,
+                    "{}:{} expect {}",
+                    stop.row(),
+                    stop.col() + stop.len(),
+                    expect
+                )
             }
             Self::ParseError => write!(f, "parse error"),
             Self::FmtError(err) => write!(f, "{}", err),
