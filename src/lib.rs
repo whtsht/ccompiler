@@ -6,59 +6,7 @@ use crate::node::Node;
 use error::CResult;
 use node::expr;
 use std::fmt::Write;
-use std::iter::{Iterator, Peekable};
 use token::{tokenize, TokenKind};
-
-pub fn to_num<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<u32> {
-    let mut result = iter.next()?.to_digit(10)? as u32;
-    loop {
-        match iter.peek() {
-            Some(c) => match c.to_digit(10) {
-                Some(i) => {
-                    result = result * 10 + i as u32;
-                    iter.next();
-                }
-                None => break,
-            },
-            None => break,
-        }
-    }
-    Some(result)
-}
-
-pub fn to_digits<I: Iterator<Item = char>>(iter: &mut Peekable<I>) -> Option<(u32, u32)> {
-    let mut result = iter.next()?.to_digit(10)? as u32;
-    let mut count = 1;
-    loop {
-        match iter.peek() {
-            Some(c) => match c.to_digit(10) {
-                Some(i) => {
-                    result = result * 10 + i as u32;
-                    iter.next();
-                    count += 1;
-                }
-                None => break,
-            },
-            None => break,
-        }
-    }
-    Some((result, count))
-}
-
-#[test]
-fn test_to_num() {
-    let testcase = vec![
-        ("21", Some(21)),
-        ("+", None),
-        ("+32", None),
-        ("32+", Some(32)),
-    ];
-
-    for (input, expected) in testcase {
-        let mut iter = input.chars().peekable();
-        assert_eq!(to_num(&mut iter), expected);
-    }
-}
 
 pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
     if let TokenKind::Num(num) = node.kind() {
@@ -79,6 +27,16 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
         TokenKind::Div => {
             writeln!(output, "  cqo")?;
             writeln!(output, "  idiv rdi")?;
+        }
+        TokenKind::Equal => {
+            writeln!(output, "  cmp rax, rdi")?;
+            writeln!(output, "  sete al")?;
+            writeln!(output, "  movzb rax, al")?;
+        }
+        TokenKind::NEqual => {
+            writeln!(output, "  cmp rax, rdi")?;
+            writeln!(output, "  setne al")?;
+            writeln!(output, "  movzb rax, al")?;
         }
         _ => (),
     }

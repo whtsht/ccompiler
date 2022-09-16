@@ -39,6 +39,36 @@ impl Node {
 }
 
 pub fn expr(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+    let mut node = relational(tokenstream)?;
+    loop {
+        if tokenstream.consume(TokenKind::Equal) {
+            node = Node::op_node(TokenKind::Equal, node, relational(tokenstream)?);
+        } else if tokenstream.consume(TokenKind::NEqual) {
+            node = Node::op_node(TokenKind::NEqual, node, relational(tokenstream)?);
+        } else {
+            return Ok(node);
+        }
+    }
+}
+
+pub fn relational(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+    let mut node = add(tokenstream)?;
+    loop {
+        if tokenstream.consume(TokenKind::Less) {
+            node = Node::op_node(TokenKind::Less, node, add(tokenstream)?);
+        } else if tokenstream.consume(TokenKind::Greater) {
+            node = Node::op_node(TokenKind::Less, add(tokenstream)?, node);
+        } else if tokenstream.consume(TokenKind::LessOrEqual) {
+            node = Node::op_node(TokenKind::LessOrEqual, node, add(tokenstream)?);
+        } else if tokenstream.consume(TokenKind::GreaterOrEqual) {
+            node = Node::op_node(TokenKind::LessOrEqual, add(tokenstream)?, node);
+        } else {
+            return Ok(node);
+        }
+    }
+}
+
+pub fn add(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     let mut node = mul(tokenstream)?;
     loop {
         if tokenstream.consume(TokenKind::Add) {
