@@ -38,4 +38,10 @@ fn test_compiler() {
     assert_compiler("(4*7)>38", Some(0));
     assert_compiler("4<5", Some(1));
     assert_compiler("12<5", Some(0));
+    assert_compiler("1<=3", Some(1));
+    assert_compiler("2<=2", Some(1));
+    assert_compiler("3<=1", Some(0));
+    assert_compiler("1>=3", Some(0));
+    assert_compiler("2>=2", Some(1));
+    assert_compiler("3>=1", Some(1));
 }

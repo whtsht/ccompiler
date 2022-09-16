@@ -43,6 +43,11 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
             writeln!(output, "  setl al")?;
             writeln!(output, "  movzb rax, al")?;
         }
+        TokenKind::LessOrEqual => {
+            writeln!(output, "  cmp rax, rdi")?;
+            writeln!(output, "  setle al")?;
+            writeln!(output, "  movzb rax, al")?;
+        }
         _ => (),
     }
 
