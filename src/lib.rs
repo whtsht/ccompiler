@@ -38,6 +38,11 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
             writeln!(output, "  setne al")?;
             writeln!(output, "  movzb rax, al")?;
         }
+        TokenKind::Less => {
+            writeln!(output, "  cmp rax, rdi")?;
+            writeln!(output, "  setl al")?;
+            writeln!(output, "  movzb rax, al")?;
+        }
         _ => (),
     }
 
