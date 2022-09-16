@@ -88,9 +88,7 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
     Ok(())
 }
 
-pub fn compile_from_source(source: String) -> CResult<String> {
-    let source = source.chars().peekable();
-
+pub fn compile_from_source(source: Vec<String>) -> CResult<String> {
     let mut output = String::new();
 
     let mut ts = tokenize(source)?;

@@ -1,9 +1,17 @@
 use ccompiler::compile_from_source;
-use std::io::{self, Read};
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
+};
 
 fn main() {
-    let mut source = String::new();
-    io::stdin().read_to_string(&mut source).unwrap();
+    let mut source = Vec::new();
+    let file = File::open("./input").unwrap();
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        source.push(line.unwrap());
+    }
 
     match compile_from_source(source) {
         Ok(dest) => println!("{}", dest),

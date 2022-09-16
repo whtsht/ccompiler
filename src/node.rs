@@ -79,9 +79,9 @@ pub fn unary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
 }
 
 pub fn primary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
-    if tokenstream.consume(TokenKind::Lbr) {
+    if tokenstream.consume(TokenKind::LRoundBracket) {
         let node = expr(tokenstream)?;
-        tokenstream.expect(TokenKind::Rbr)?;
+        tokenstream.expect(TokenKind::RRoundBracket)?;
         return Ok(node);
     }
     return Ok(Node::num_node(tokenstream.expect_number()?));

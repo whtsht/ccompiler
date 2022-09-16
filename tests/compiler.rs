@@ -1,26 +1,15 @@
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-use std::process::Stdio;
 
 fn assert_compiler(input: &str, expected: Option<i32>) {
-    let mut handle = Command::new("./target/debug/ccompiler")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+    fs::write("./input", input).expect("failed to write the file");
 
-    handle
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(input.as_bytes())
-        .unwrap();
-
-    let output = handle.wait_with_output().unwrap();
+    let handle = Command::new("./target/debug/ccompiler").output().unwrap();
 
     let mut file = File::create("./tmp.s").unwrap();
-    file.write_all(&output.stdout).unwrap();
+    file.write_all(&handle.stdout).unwrap();
 
     Command::new("cc")
         .args(["-o", "tmp", "tmp.s"])

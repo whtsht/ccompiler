@@ -30,7 +30,7 @@ impl Display for CompileError {
                     f,
                     "{}:{} expect: {}, find: {}",
                     stop.row(),
-                    stop.col() + stop.len(),
+                    stop.col() + stop.kind().len(),
                     expect,
                     result
                 )
@@ -40,7 +40,7 @@ impl Display for CompileError {
                     f,
                     "{}:{} expect {}",
                     stop.row(),
-                    stop.col() + stop.len(),
+                    stop.col() + stop.kind().len(),
                     expect
                 )
             }
