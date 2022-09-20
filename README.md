@@ -1,10 +1,21 @@
 # C Compiler in Rust
 
 # EBNF
-num
-    := 0 | 1 | ... | 255 |
+
+```
+program
+    := stmt*
+
+stmt
+    := expr ";"
 
 expr
+    := assign
+
+assign
+    := equality ("=" assign)?
+
+equality
     := relational ("==" relational | "!=" relational)*
 
 relational
@@ -20,4 +31,11 @@ unary
     := ("+" | "-")? primary
 
 primary
-    := num | "(" expr ")"
+    := num | ident | "(" expr ")"
+
+num
+    := 0 | 1 | ... | 255
+
+ident
+    := a | b | ... | z
+```

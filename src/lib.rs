@@ -4,14 +4,55 @@ mod token;
 
 use crate::node::Node;
 use error::CResult;
-use node::expr;
+use error::CompileError;
+use node::program;
 use std::fmt::Write;
 use token::{tokenize, TokenKind};
 
+pub fn gen_lval(node: &Box<Node>, output: &mut String) -> CResult<()> {
+    if let TokenKind::LocalVar { offset, .. } = node.kind() {
+        writeln!(output, "  mov rax, rbp")?;
+        writeln!(output, "  sub rax, {}", offset)?;
+        writeln!(output, "  push rax")?;
+    } else {
+        return Err(CompileError::ParseError);
+    }
+    Ok(())
+}
+
 pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
-    if let TokenKind::Num(num) = node.kind() {
-        writeln!(output, "  push {}", num)?;
-        return Ok(());
+    match node.kind() {
+        TokenKind::Num(num) => {
+            writeln!(output, "  push {}", num)?;
+            return Ok(());
+        }
+        TokenKind::LocalVar { .. } => {
+            gen_lval(node, output)?;
+            writeln!(output, "  pop rax")?;
+            writeln!(output, "  mov rax, [rax]")?;
+            writeln!(output, "  push rax")?;
+            return Ok(());
+        }
+        TokenKind::Assign => {
+            gen_lval(
+                node.lhs()
+                    .as_ref()
+                    .ok_or_else(|| CompileError::ParseError)?,
+                output,
+            )?;
+            gen(
+                node.rhs()
+                    .as_ref()
+                    .ok_or_else(|| CompileError::ParseError)?,
+                output,
+            )?;
+            writeln!(output, "  pop rdi")?;
+            writeln!(output, "  pop rax")?;
+            writeln!(output, "  mov [rax], rdi")?;
+            writeln!(output, "  push rdi")?;
+            return Ok(());
+        }
+        _ => {}
     }
 
     gen(node.lhs().unwrap(), output)?;
@@ -60,15 +101,24 @@ pub fn compile_from_source(source: Vec<String>) -> CResult<String> {
     let mut output = String::new();
 
     let mut ts = tokenize(source)?;
-    let node = expr(&mut ts)?;
+    let program = program(&mut ts)?;
 
     writeln!(output, ".intel_syntax noprefix")?;
     writeln!(output, ".globl main")?;
     writeln!(output, "main:")?;
 
-    gen(&node, &mut output)?;
+    writeln!(output, "  push rbp")?;
+    writeln!(output, "  mov rbp, rsp")?;
+    writeln!(output, "  sub rsp, 208")?; // = 26 * 8
 
-    writeln!(output, "  pop rax")?;
+    dbg!(&program);
+    for node in program {
+        gen(&node, &mut output)?;
+        writeln!(output, "  pop rax")?;
+    }
+
+    writeln!(output, "  mov rsp, rbp")?;
+    writeln!(output, "  pop rbp")?;
     writeln!(output, "  ret")?;
 
     return Ok(output);

@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     /// Additional | +
     Add,
@@ -29,7 +29,14 @@ pub enum TokenKind {
     LessOrEqual,
     /// Greater than or equal to | >=
     GreaterOrEqual,
+    /// Number | 1, 2, ... , 255
     Num(u32),
+    /// Local variable
+    LocalVar { symbol: String, offset: u32 },
+    /// Semicolon | ;
+    Semicolon,
+    /// Assign | =
+    Assign,
 }
 
 fn digits(mut x: u32) -> u32 {
@@ -54,32 +61,13 @@ impl TokenKind {
             TokenKind::Add | TokenKind::Sub | TokenKind::Mul | TokenKind::Div => 1,
             TokenKind::LRoundBracket | TokenKind::RRoundBracket => 1,
             TokenKind::Less | TokenKind::Greater => 1,
+            TokenKind::Semicolon | TokenKind::Assign => 1,
             TokenKind::Equal
             | TokenKind::NEqual
             | TokenKind::LessOrEqual
             | TokenKind::GreaterOrEqual => 2,
             TokenKind::Num(num) => digits(*num),
-        }
-    }
-}
-
-impl PartialEq for TokenKind {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (&TokenKind::Num(_), &TokenKind::Num(_)) => true,
-            (&TokenKind::Add, &TokenKind::Add)
-            | (&TokenKind::Sub, &TokenKind::Sub)
-            | (&TokenKind::Mul, &TokenKind::Mul)
-            | (&TokenKind::Div, &TokenKind::Div)
-            | (&TokenKind::LRoundBracket, &TokenKind::LRoundBracket)
-            | (&TokenKind::RRoundBracket, &TokenKind::RRoundBracket)
-            | (&TokenKind::Equal, &TokenKind::Equal)
-            | (&TokenKind::NEqual, &TokenKind::NEqual)
-            | (&TokenKind::Less, &TokenKind::Less)
-            | (&TokenKind::Greater, &TokenKind::Greater)
-            | (&TokenKind::LessOrEqual, &TokenKind::LessOrEqual)
-            | (&TokenKind::GreaterOrEqual, &TokenKind::GreaterOrEqual) => true,
-            _ => false,
+            TokenKind::LocalVar { symbol, .. } => symbol.len() as u32,
         }
     }
 }
@@ -100,6 +88,9 @@ impl Display for TokenKind {
             TokenKind::Greater => write!(f, "Operation: >"),
             TokenKind::LessOrEqual => write!(f, "Operation: <="),
             TokenKind::GreaterOrEqual => write!(f, "Operation: >="),
+            TokenKind::LocalVar { .. } => write!(f, "Local variable"),
+            TokenKind::Semicolon => write!(f, "Semicolon"),
+            TokenKind::Assign => write!(f, "Assign"),
         }
     }
 }
@@ -164,6 +155,116 @@ pub struct TokenStream {
     stream: Peekable<IntoIter<Token>>,
 }
 
+pub fn two_word_token(tokens: &mut Vec<Token>, line: &String, row: usize, col: &mut usize) -> bool {
+    match &line[*col..*col + 2] {
+        "==" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Equal));
+            *col += 2;
+            true
+        }
+        "!=" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::NEqual));
+            *col += 2;
+            true
+        }
+        ">=" => {
+            tokens.push(Token::new(
+                *col as u32,
+                row as u32,
+                TokenKind::GreaterOrEqual,
+            ));
+            *col += 2;
+            true
+        }
+        "<=" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::LessOrEqual));
+            *col += 2;
+            true
+        }
+        _ => false,
+    }
+}
+
+pub fn one_word_token(
+    tokens: &mut Vec<Token>,
+    line: &String,
+    row: usize,
+    col: &mut usize,
+) -> CResult<()> {
+    let word = &line[*col..*col + 1];
+    match word {
+        " " => {
+            *col += 1;
+        }
+        "<" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Less));
+            *col += 1;
+        }
+        ">" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Greater));
+            *col += 1;
+        }
+        "+" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Add));
+            *col += 1;
+        }
+        "-" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Sub));
+            *col += 1;
+        }
+        "*" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Mul));
+            *col += 1;
+        }
+        "/" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Div));
+            *col += 1;
+        }
+        "(" => {
+            tokens.push(Token::new(
+                *col as u32,
+                row as u32,
+                TokenKind::LRoundBracket,
+            ));
+            *col += 1;
+        }
+        ")" => {
+            tokens.push(Token::new(
+                *col as u32,
+                row as u32,
+                TokenKind::RRoundBracket,
+            ));
+            *col += 1;
+        }
+        ";" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Semicolon));
+            *col += 1;
+        }
+        "=" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Assign));
+            *col += 1;
+        }
+        _ => {
+            if word.chars().all(char::is_alphabetic) {
+                tokens.push(Token::new(
+                    *col as u32,
+                    row as u32,
+                    TokenKind::LocalVar {
+                        symbol: word.to_string(),
+                        offset: (word.chars().next().unwrap() as u8 - b'a' + 1) as u32 * 8,
+                    },
+                ));
+                *col += 1;
+            } else {
+                let (num, count) = num_token(&line[*col..])?;
+                tokens.push(Token::new(*col as u32, row as u32, TokenKind::Num(num)));
+                *col += count;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn tokenize(source: Vec<String>) -> CResult<TokenStream> {
     let mut tokens: Vec<Token> = Vec::new();
 
@@ -176,102 +277,14 @@ pub fn tokenize(source: Vec<String>) -> CResult<TokenStream> {
         let mut col = 0;
         let max = line.len() - 1;
         while col < max {
-            match &line[col..col + 2] {
-                "==" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Equal));
-                    col += 2;
-                    continue;
-                }
-                "!=" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::NEqual));
-                    col += 2;
-                    continue;
-                }
-                ">=" => {
-                    tokens.push(Token::new(
-                        col as u32,
-                        row as u32,
-                        TokenKind::GreaterOrEqual,
-                    ));
-                    col += 2;
-                    continue;
-                }
-                "<=" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::LessOrEqual));
-                    col += 2;
-                    continue;
-                }
-                _ => {}
+            if two_word_token(&mut tokens, &line, row, &mut col) {
+                continue;
             }
-            match &line[col..col + 1] {
-                " " => {}
-                "<" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Less));
-                }
-                ">" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Greater));
-                }
-                "+" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Add));
-                }
-                "-" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Sub));
-                }
-                "*" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Mul));
-                }
-                "/" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Div));
-                }
-                "(" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::LRoundBracket));
-                }
-                ")" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::RRoundBracket));
-                }
-                _ => {
-                    let (num, count) = num_token(&line[col..])?;
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Num(num)));
-                    col += count;
-                    continue;
-                }
-            }
-
-            col += 1;
+            one_word_token(&mut tokens, &line, row, &mut col)?;
         }
 
         if col < line.len() {
-            match &line[col..col + 1] {
-                " " => {}
-                "<" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Less));
-                }
-                ">" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Greater));
-                }
-                "+" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Add));
-                }
-                "-" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Sub));
-                }
-                "*" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Mul));
-                }
-                "/" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Div));
-                }
-                "(" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::LRoundBracket));
-                }
-                ")" => {
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::RRoundBracket));
-                }
-                _ => {
-                    let (num, _) = num_token(&line[col..])?;
-                    tokens.push(Token::new(col as u32, row as u32, TokenKind::Num(num)));
-                }
-            }
+            one_word_token(&mut tokens, &line, row, &mut col)?;
         }
     }
 
@@ -312,13 +325,33 @@ fn testrunner_tokenize() {
         Token::new(4, 0, TokenKind::Num(4)),
     ];
     test_tokenize("7+3-4", expect);
+
+    let expect = vec![
+        Token::new(
+            0,
+            0,
+            TokenKind::LocalVar {
+                symbol: String::from("a"),
+                offset: 8,
+            },
+        ),
+        Token::new(2, 0, TokenKind::Assign),
+        Token::new(4, 0, TokenKind::Num(3)),
+    ];
+
+    test_tokenize("a = 3", expect);
 }
 
 impl TokenStream {
-    pub fn expect(&mut self, expect: TokenKind) -> CResult<()> {
+    pub fn is_empty(&mut self) -> bool {
+        self.stream.peek().is_none()
+    }
+
+    pub fn expect(&mut self, expect: TokenKind) -> CResult<TokenKind> {
         if let Some(token) = self.stream.next() {
             if token.kind() == expect {
-                Ok(())
+                self.token = token.clone();
+                Ok(token.kind())
             } else {
                 Err(CompileError::Unexpected {
                     stop: self.token.clone(),
@@ -350,6 +383,34 @@ impl TokenStream {
             Err(CompileError::Expected {
                 stop: self.token.clone(),
                 expect: TokenKind::Num(0),
+            })
+        }
+    }
+
+    pub fn expect_local_variable(&mut self) -> CResult<TokenKind> {
+        if let Some(token) = self.stream.peek() {
+            if let TokenKind::LocalVar { .. } = token.kind() {
+                self.token = token.clone();
+                let kind = token.kind();
+                self.stream.next();
+                Ok(kind)
+            } else {
+                Err(CompileError::Unexpected {
+                    stop: self.token.clone(),
+                    expect: TokenKind::LocalVar {
+                        symbol: String::new(),
+                        offset: 0,
+                    },
+                    result: token.kind(),
+                })
+            }
+        } else {
+            Err(CompileError::Expected {
+                stop: self.token.clone(),
+                expect: TokenKind::LocalVar {
+                    symbol: String::new(),
+                    offset: 0,
+                },
             })
         }
     }

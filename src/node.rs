@@ -1,7 +1,7 @@
 use crate::error::CResult;
 use crate::token::{TokenKind, TokenStream};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Node {
     kind: TokenKind,
     lhs: Option<Box<Node>>,
@@ -36,10 +36,57 @@ impl Node {
             rhs: None,
         })
     }
+
+    pub fn variable_node(symbol: String, offset: u32) -> Box<Node> {
+        Box::new(Self {
+            kind: TokenKind::LocalVar { symbol, offset },
+            lhs: None,
+            rhs: None,
+        })
+    }
+}
+
+pub fn program(tokenstream: &mut TokenStream) -> CResult<Vec<Box<Node>>> {
+    let mut nodes = Vec::new();
+
+    while let Some(node) = stmt(tokenstream) {
+        nodes.push(node?);
+    }
+
+    Ok(nodes)
+}
+
+pub fn stmt(tokenstream: &mut TokenStream) -> Option<CResult<Box<Node>>> {
+    if tokenstream.is_empty() {
+        return None;
+    }
+
+    let node = match expr(tokenstream) {
+        Ok(node) => node,
+        Err(err) => return Some(Err(err)),
+    };
+
+    if let Err(err) = tokenstream.expect(TokenKind::Semicolon) {
+        return Some(Err(err));
+    }
+
+    Some(Ok(node))
 }
 
 pub fn expr(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+    Ok(assign(tokenstream)?)
+}
+
+pub fn assign(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+    let mut node = equality(tokenstream)?;
+    if tokenstream.consume(TokenKind::Assign) {
+        node = Node::op_node(TokenKind::Assign, node, assign(tokenstream)?);
+    }
+    Ok(node)
+}
+pub fn equality(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     let mut node = relational(tokenstream)?;
+
     loop {
         if tokenstream.consume(TokenKind::Equal) {
             node = Node::op_node(TokenKind::Equal, node, relational(tokenstream)?);
@@ -114,5 +161,56 @@ pub fn primary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
         tokenstream.expect(TokenKind::RRoundBracket)?;
         return Ok(node);
     }
-    return Ok(Node::num_node(tokenstream.expect_number()?));
+
+    if let Ok(TokenKind::LocalVar { symbol, offset }) = tokenstream.expect_local_variable() {
+        return Ok(Node::variable_node(symbol, offset));
+    } else {
+        return Ok(Node::num_node(tokenstream.expect_number()?));
+    }
+}
+
+#[test]
+fn testrunner_node() -> CResult<()> {
+    use crate::token::tokenize;
+    let test_node = |source: &str, expect: Box<Node>| {
+        let mut tokenstream: TokenStream = tokenize(vec![source.to_string()]).unwrap();
+        let stmt = stmt(&mut tokenstream).unwrap().unwrap();
+
+        assert_eq!(stmt, expect, "{}", source);
+    };
+
+    let expect = Box::new(Node {
+        kind: TokenKind::Add,
+        lhs: Some(Box::new(Node {
+            kind: TokenKind::Num(1),
+            lhs: None,
+            rhs: None,
+        })),
+        rhs: Some(Box::new(Node {
+            kind: TokenKind::Num(2),
+            lhs: None,
+            rhs: None,
+        })),
+    });
+    test_node("1+2;", expect);
+
+    let expect = Box::new(Node {
+        kind: TokenKind::Assign,
+        lhs: Some(Box::new(Node {
+            kind: TokenKind::LocalVar {
+                symbol: "a".to_string(),
+                offset: 8,
+            },
+            lhs: None,
+            rhs: None,
+        })),
+        rhs: Some(Box::new(Node {
+            kind: TokenKind::Num(3),
+            lhs: None,
+            rhs: None,
+        })),
+    });
+    test_node("a = 3;", expect);
+
+    Ok(())
 }
