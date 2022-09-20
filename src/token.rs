@@ -32,12 +32,14 @@ pub enum TokenKind {
     GreaterOrEqual,
     /// Number | 1, 2, ... , 255
     Num(u32),
-    /// Local variable
+    /// Local variable | (a..z | A..Z | _)(a..z | A..Z | _ | 0..9)*
     LocalVar { symbol: String, offset: u32 },
     /// Semicolon | ;
     Semicolon,
     /// Assign | =
     Assign,
+    /// Return | return
+    Return,
 }
 
 fn digits(mut x: u32) -> u32 {
@@ -69,6 +71,7 @@ impl TokenKind {
             | TokenKind::GreaterOrEqual => 2,
             TokenKind::Num(num) => digits(*num),
             TokenKind::LocalVar { symbol, .. } => symbol.len() as u32,
+            TokenKind::Return => 6,
         }
     }
 }
@@ -92,6 +95,7 @@ impl Display for TokenKind {
             TokenKind::LocalVar { .. } => write!(f, "Local variable"),
             TokenKind::Semicolon => write!(f, "Semicolon"),
             TokenKind::Assign => write!(f, "Assign"),
+            TokenKind::Return => write!(f, "Return"),
         }
     }
 }
@@ -147,7 +151,7 @@ fn num_token(s: &str) -> CResult<(u32, usize)> {
 }
 
 fn var_token(line: &str) -> Option<(String, usize)> {
-    if line.chars().peekable().peek()?.is_alphabetic() {
+    if is_var_first(line.chars().next()?) {
         let var = line.split_once(|c| !is_alnum(c)).unwrap().0;
         Some((var.to_string(), var.len()))
     } else {
@@ -155,8 +159,12 @@ fn var_token(line: &str) -> Option<(String, usize)> {
     }
 }
 
+fn is_var_first(c: char) -> bool {
+    'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || c == '_'
+}
+
 fn is_alnum(c: char) -> bool {
-    'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' || c == '_'
+    is_var_first(c) || '0' <= c && c <= '9'
 }
 
 #[test]
@@ -169,6 +177,17 @@ fn test_match_word() {
 pub struct TokenStream {
     token: Token,
     stream: Peekable<IntoIter<Token>>,
+}
+
+pub fn return_token(tokens: &mut Vec<Token>, line: &String, row: usize, col: &mut usize) -> bool {
+    match &line[*col..*col + 6] {
+        "return" if !is_alnum(line[*col + 6..].chars().next().unwrap()) => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Return));
+            *col += 6;
+            true
+        }
+        _ => two_word_token(tokens, line, row, col),
+    }
 }
 
 pub fn two_word_token(tokens: &mut Vec<Token>, line: &String, row: usize, col: &mut usize) -> bool {
@@ -197,7 +216,7 @@ pub fn two_word_token(tokens: &mut Vec<Token>, line: &String, row: usize, col: &
             *col += 2;
             true
         }
-        _ => false,
+        _ => one_word_token(tokens, line, row, col),
     }
 }
 
@@ -311,22 +330,18 @@ pub fn tokenize(source: Vec<String>) -> CResult<TokenStream> {
 
     for (row, line) in source.into_iter().enumerate() {
         let mut col = 0;
-        let max = line.len() - 1;
-        while col < max {
-            if two_word_token(&mut tokens, &line, row, &mut col) {
-                continue;
-            }
-            if one_word_token(&mut tokens, &line, row, &mut col) {
-                continue;
-            }
-            other_word_token(&mut tokens, &line, &mut variables, row, &mut col)?;
-        }
+        let max = line.len();
+        loop {
+            let result = match max - col {
+                0 => break,
+                1 => one_word_token(&mut tokens, &line, row, &mut col),
+                2..=6 => two_word_token(&mut tokens, &line, row, &mut col),
+                _ => return_token(&mut tokens, &line, row, &mut col),
+            };
 
-        if col < line.len() {
-            if one_word_token(&mut tokens, &line, row, &mut col) {
-                continue;
+            if !result {
+                other_word_token(&mut tokens, &line, &mut variables, row, &mut col)?;
             }
-            other_word_token(&mut tokens, &line, &mut variables, row, &mut col)?;
         }
     }
 
@@ -380,9 +395,6 @@ fn testrunner_tokenize() {
         Token::new(2, 0, TokenKind::Assign),
         Token::new(4, 0, TokenKind::Num(3)),
     ];
-
-    let token_stream: TokenStream = tokenize(vec!["a = 3".to_string()]).unwrap();
-    dbg!(token_stream);
     test_tokenize("a = 3", expect);
 
     let expect = vec![
@@ -399,6 +411,23 @@ fn testrunner_tokenize() {
         Token::new(10, 0, TokenKind::Semicolon),
     ];
     test_tokenize("hello1 = 3;", expect);
+
+    let expect = vec![
+        Token::new(0, 0, TokenKind::Return),
+        Token::new(7, 0, TokenKind::Num(8)),
+        Token::new(8, 0, TokenKind::Semicolon),
+    ];
+    test_tokenize("return 8;", expect);
+
+    let expect = vec![Token::new(
+        0,
+        0,
+        TokenKind::LocalVar {
+            symbol: "returned".into(),
+            offset: 8,
+        },
+    )];
+    test_tokenize("returned;", expect);
 }
 
 impl TokenStream {

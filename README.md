@@ -7,7 +7,7 @@ program
     := stmt*
 
 stmt
-    := expr ";"
+    := expr ";" | "return" expr ";"
 
 expr
     := assign

@@ -29,6 +29,19 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
             writeln!(output, "  push rax")?;
             return Ok(());
         }
+        TokenKind::Return => {
+            gen(
+                node.lhs()
+                    .as_ref()
+                    .ok_or_else(|| CompileError::ParseError)?,
+                output,
+            )?;
+            writeln!(output, "  pop rax")?;
+            writeln!(output, "  mov rsp, rbp")?;
+            writeln!(output, "  pop rbp")?;
+            writeln!(output, "  ret")?;
+            return Ok(());
+        }
         TokenKind::Assign => {
             gen_lval(
                 node.lhs()

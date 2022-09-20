@@ -61,9 +61,22 @@ pub fn stmt(tokenstream: &mut TokenStream) -> Option<CResult<Box<Node>>> {
         return None;
     }
 
-    let node = match expr(tokenstream) {
-        Ok(node) => node,
-        Err(err) => return Some(Err(err)),
+    let node = if tokenstream.consume(TokenKind::Return) {
+        let mut node = Box::new(Node {
+            kind: TokenKind::Return,
+            lhs: None,
+            rhs: None,
+        });
+        node.lhs = Some(match expr(tokenstream) {
+            Ok(node) => node,
+            Err(err) => return Some(Err(err)),
+        });
+        node
+    } else {
+        match expr(tokenstream) {
+            Ok(node) => node,
+            Err(err) => return Some(Err(err)),
+        }
     };
 
     if let Err(err) = tokenstream.expect(TokenKind::Semicolon) {
