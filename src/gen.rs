@@ -107,7 +107,6 @@ pub fn compile_from_source(source: Vec<String>) -> CResult<String> {
     writeln!(output, "  mov rbp, rsp")?;
     writeln!(output, "  sub rsp, 208")?; // = 26 * 8
 
-    dbg!(&program);
     for node in program {
         gen(&node, &mut output)?;
         writeln!(output, "  pop rax")?;
