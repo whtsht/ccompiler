@@ -1,4 +1,5 @@
-use ccompiler::compile_from_source;
+use ccompiler::gen::compile_from_source;
+
 use std::{
     fs::File,
     io::{BufRead, BufReader},
