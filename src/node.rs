@@ -1,5 +1,6 @@
-use crate::error::{CResult, CompileError};
+use crate::result::CompileError;
 use crate::token::{TokenKind, TokenStream};
+use anyhow::Result;
 
 #[derive(Debug, PartialEq)]
 pub struct Node {
@@ -46,34 +47,36 @@ impl Node {
     }
 }
 
-pub fn program(tokenstream: &mut TokenStream) -> CResult<Vec<Box<Node>>> {
+pub fn program(tokenstream: &mut TokenStream) -> Result<Vec<Box<Node>>> {
     let mut nodes = Vec::new();
 
-    while let Some(node) = stmt(tokenstream) {
-        nodes.push(node?);
+    while let Some(node) = stmt(tokenstream)? {
+        nodes.push(node);
     }
 
     Ok(nodes)
 }
 
-pub fn stmt(tokenstream: &mut TokenStream) -> Option<CResult<Box<Node>>> {
+pub fn stmt(tokenstream: &mut TokenStream) -> Result<Option<Box<Node>>> {
     if tokenstream.is_empty() {
-        return None;
+        return Ok(None);
     }
 
-    // TODO Error handling
     if tokenstream.consume(TokenKind::If) {
         if !tokenstream.consume(TokenKind::LRoundBracket) {
-            return Some(Err(CompileError::ParseError(Some("stmt LRoundBracket"))));
+            return Err(CompileError::ParseError(Some("stmt LRoundBracket")))?;
         }
 
-        let lhs = Some(expr(tokenstream).unwrap());
+        let lhs = Some(expr(tokenstream)?);
 
         if !tokenstream.consume(TokenKind::RRoundBracket) {
-            return Some(Err(CompileError::ParseError(Some("stmt RRoundBracket"))));
+            return Err(CompileError::ParseError(Some("stmt RRoundBracket")))?;
         }
 
-        let rhs = Some(stmt(tokenstream).unwrap().unwrap());
+        let rhs = match stmt(tokenstream)? {
+            Some(node) => Some(node),
+            None => Err(CompileError::ParseError(Some("expect rhs")))?,
+        };
 
         let node = Box::new(Node {
             kind: TokenKind::If,
@@ -81,7 +84,7 @@ pub fn stmt(tokenstream: &mut TokenStream) -> Option<CResult<Box<Node>>> {
             rhs,
         });
 
-        return Some(Ok(node));
+        return Ok(Some(node));
     }
 
     if tokenstream.consume(TokenKind::Return) {
@@ -92,40 +95,40 @@ pub fn stmt(tokenstream: &mut TokenStream) -> Option<CResult<Box<Node>>> {
         });
         node.lhs = Some(match expr(tokenstream) {
             Ok(node) => node,
-            Err(err) => return Some(Err(err)),
+            Err(err) => return Err(err)?,
         });
 
         if let Err(err) = tokenstream.expect(TokenKind::Semicolon) {
-            return Some(Err(err));
+            return Err(err)?;
         }
 
-        return Some(Ok(node));
+        return Ok(Some(node));
     }
 
     let node = match expr(tokenstream) {
         Ok(node) => node,
-        Err(err) => return Some(Err(err)),
+        Err(err) => return Err(err)?,
     };
 
     if let Err(err) = tokenstream.expect(TokenKind::Semicolon) {
-        return Some(Err(err));
+        return Err(err)?;
     }
 
-    Some(Ok(node))
+    Ok(Some(node))
 }
 
-pub fn expr(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn expr(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     Ok(assign(tokenstream)?)
 }
 
-pub fn assign(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn assign(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     let mut node = equality(tokenstream)?;
     if tokenstream.consume(TokenKind::Assign) {
         node = Node::op_node(TokenKind::Assign, node, assign(tokenstream)?);
     }
     Ok(node)
 }
-pub fn equality(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn equality(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     let mut node = relational(tokenstream)?;
 
     loop {
@@ -139,7 +142,7 @@ pub fn equality(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     }
 }
 
-pub fn relational(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn relational(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     let mut node = add(tokenstream)?;
     loop {
         if tokenstream.consume(TokenKind::Less) {
@@ -156,7 +159,7 @@ pub fn relational(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     }
 }
 
-pub fn add(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn add(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     let mut node = mul(tokenstream)?;
     loop {
         if tokenstream.consume(TokenKind::Add) {
@@ -169,7 +172,7 @@ pub fn add(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     }
 }
 
-pub fn mul(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn mul(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     let mut node = unary(tokenstream)?;
     loop {
         if tokenstream.consume(TokenKind::Mul) {
@@ -182,7 +185,7 @@ pub fn mul(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     }
 }
 
-pub fn unary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn unary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     if tokenstream.consume(TokenKind::Add) {
         return primary(tokenstream);
     }
@@ -196,7 +199,7 @@ pub fn unary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
     primary(tokenstream)
 }
 
-pub fn primary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
+pub fn primary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
     if tokenstream.consume(TokenKind::LRoundBracket) {
         let node = expr(tokenstream)?;
         tokenstream.expect(TokenKind::RRoundBracket)?;
@@ -211,7 +214,7 @@ pub fn primary(tokenstream: &mut TokenStream) -> CResult<Box<Node>> {
 }
 
 #[test]
-fn testrunner_node() -> CResult<()> {
+fn testrunner_node() -> Result<()> {
     use crate::token::tokenize;
     let test_node = |source: &str, expect: Box<Node>| {
         let mut tokenstream: TokenStream = tokenize(vec![source.to_string()]).unwrap();

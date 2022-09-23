@@ -1,22 +1,22 @@
-use crate::error::CResult;
-use crate::error::CompileError;
 use crate::node::program;
 use crate::node::Node;
+use crate::result::CompileError;
 use crate::token::{tokenize, TokenKind};
+use anyhow::Result;
 use std::fmt::Write;
 
-pub fn gen_lval(node: &Box<Node>, output: &mut String) -> CResult<()> {
+pub fn gen_lval(node: &Box<Node>, output: &mut String) -> Result<()> {
     if let TokenKind::LocalVar { offset, .. } = node.kind() {
         writeln!(output, "  mov rax, rbp")?;
         writeln!(output, "  sub rax, {}", offset)?;
         writeln!(output, "  push rax")?;
     } else {
-        return Err(CompileError::ParseError(None));
+        Err(CompileError::ParseError(None))?;
     }
     Ok(())
 }
 
-pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
+pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
     match node.kind() {
         TokenKind::If => {
             gen(
@@ -125,7 +125,7 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
     Ok(())
 }
 
-pub fn compile_from_source(source: Vec<String>) -> CResult<String> {
+pub fn compile_from_source(source: Vec<String>) -> Result<String> {
     let mut output = String::new();
 
     let mut ts = tokenize(source)?;

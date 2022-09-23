@@ -1,4 +1,5 @@
-use crate::error::{CResult, CompileError};
+use crate::result::CompileError;
+use anyhow::Result;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::iter::Peekable;
@@ -95,9 +96,9 @@ impl Display for TokenKind {
             TokenKind::Greater => write!(f, "Operation: >"),
             TokenKind::LessOrEqual => write!(f, "Operation: <="),
             TokenKind::GreaterOrEqual => write!(f, "Operation: >="),
-            TokenKind::LocalVar { .. } => write!(f, "Local variable"),
-            TokenKind::Semicolon => write!(f, "Semicolon"),
-            TokenKind::Assign => write!(f, "Assign"),
+            TokenKind::LocalVar { .. } => write!(f, "Variable"),
+            TokenKind::Semicolon => write!(f, "Semicolon: ;"),
+            TokenKind::Assign => write!(f, "Assign: ="),
             TokenKind::If => write!(f, "If"),
             TokenKind::Return => write!(f, "Return"),
         }
@@ -129,13 +130,7 @@ impl Token {
     }
 }
 
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{} : {}", self.row, self.row, self.kind)
-    }
-}
-
-fn num_token(s: &str) -> CResult<(u32, usize)> {
+fn num_token(s: &str) -> Result<(u32, usize)> {
     let mut result = (&s[0..1])
         .parse::<u32>()
         .or_else(|_| Err(CompileError::ParseError(Some("Number"))))?;
@@ -294,7 +289,7 @@ fn other_word_token(
     variables: &mut HashMap<String, u32>,
     row: usize,
     col: &mut usize,
-) -> CResult<()> {
+) -> Result<()> {
     if let Some((var, len)) = var_token(&line[*col..]) {
         if let Some(&offset) = variables.get(&var) {
             tokens.push(Token::new(
@@ -328,13 +323,13 @@ fn other_word_token(
     Ok(())
 }
 
-pub fn tokenize(source: Vec<String>) -> CResult<TokenStream> {
+pub fn tokenize(source: Vec<String>) -> Result<TokenStream> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut variables: HashMap<String, u32> = HashMap::new();
 
     // If source code is empty, return parse error.
     if source.is_empty() {
-        return Err(CompileError::ParseError(Some("A Source code is empty")));
+        Err(CompileError::ParseError(Some("A Source code is empty")))?;
     }
 
     for (row, line) in source.into_iter().enumerate() {
@@ -463,7 +458,7 @@ impl TokenStream {
         self.stream.peek().is_none()
     }
 
-    pub fn expect(&mut self, expect: TokenKind) -> CResult<TokenKind> {
+    pub fn expect(&mut self, expect: TokenKind) -> Result<TokenKind> {
         if let Some(token) = self.stream.next() {
             if token.kind() == expect {
                 self.token = token.clone();
@@ -473,17 +468,17 @@ impl TokenStream {
                     stop: self.token.clone(),
                     expect,
                     result: token.kind(),
-                })
+                })?
             }
         } else {
             Err(CompileError::Expected {
                 stop: self.token.clone(),
                 expect,
-            })
+            })?
         }
     }
 
-    pub fn expect_number(&mut self) -> CResult<u32> {
+    pub fn expect_number(&mut self) -> Result<u32> {
         if let Some(token) = self.stream.next() {
             if let TokenKind::Num(num) = token.kind() {
                 self.token = token.clone();
@@ -493,17 +488,17 @@ impl TokenStream {
                     stop: self.token.clone(),
                     expect: TokenKind::Num(0),
                     result: token.kind(),
-                })
+                })?
             }
         } else {
             Err(CompileError::Expected {
                 stop: self.token.clone(),
                 expect: TokenKind::Num(0),
-            })
+            })?
         }
     }
 
-    pub fn expect_local_variable(&mut self) -> CResult<TokenKind> {
+    pub fn expect_local_variable(&mut self) -> Result<TokenKind> {
         if let Some(token) = self.stream.peek() {
             if let TokenKind::LocalVar { .. } = token.kind() {
                 self.token = token.clone();
@@ -518,7 +513,7 @@ impl TokenStream {
                         offset: 0,
                     },
                     result: token.kind(),
-                })
+                })?
             }
         } else {
             Err(CompileError::Expected {
@@ -527,7 +522,7 @@ impl TokenStream {
                     symbol: String::new(),
                     offset: 0,
                 },
-            })
+            })?
         }
     }
 
@@ -542,14 +537,5 @@ impl TokenStream {
         } else {
             false
         }
-    }
-}
-
-impl Display for TokenStream {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for token in self.stream.clone() {
-            write!(f, "{:?} ", token)?;
-        }
-        write!(f, "\n")
     }
 }
