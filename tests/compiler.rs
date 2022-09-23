@@ -48,4 +48,5 @@ fn test_compiler() {
     assert_compiler("z = 5; 2 * z;", Some(10));
     assert_compiler("foo = 3; bar = 5; foo + bar;", Some(8));
     assert_compiler("c = 4;return c - 2;", Some(2));
+    assert_compiler("if (1+1==2) 5;", Some(5));
 }

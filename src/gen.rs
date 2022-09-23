@@ -11,13 +11,32 @@ pub fn gen_lval(node: &Box<Node>, output: &mut String) -> CResult<()> {
         writeln!(output, "  sub rax, {}", offset)?;
         writeln!(output, "  push rax")?;
     } else {
-        return Err(CompileError::ParseError);
+        return Err(CompileError::ParseError(None));
     }
     Ok(())
 }
 
 pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
     match node.kind() {
+        TokenKind::If => {
+            gen(
+                node.lhs()
+                    .as_ref()
+                    .ok_or_else(|| CompileError::ParseError(Some("If lhs")))?,
+                output,
+            )?;
+            writeln!(output, "  pop rax")?;
+            writeln!(output, "  cmp rax, 0")?;
+            writeln!(output, "  je .LendA")?;
+            writeln!(output, ".LendA:")?;
+            gen(
+                node.rhs()
+                    .as_ref()
+                    .ok_or_else(|| CompileError::ParseError(Some("If rhs")))?,
+                output,
+            )?;
+            return Ok(());
+        }
         TokenKind::Num(num) => {
             writeln!(output, "  push {}", num)?;
             return Ok(());
@@ -33,7 +52,7 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
             gen(
                 node.lhs()
                     .as_ref()
-                    .ok_or_else(|| CompileError::ParseError)?,
+                    .ok_or_else(|| CompileError::ParseError(None))?,
                 output,
             )?;
             writeln!(output, "  pop rax")?;
@@ -46,13 +65,13 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> CResult<()> {
             gen_lval(
                 node.lhs()
                     .as_ref()
-                    .ok_or_else(|| CompileError::ParseError)?,
+                    .ok_or_else(|| CompileError::ParseError(None))?,
                 output,
             )?;
             gen(
                 node.rhs()
                     .as_ref()
-                    .ok_or_else(|| CompileError::ParseError)?,
+                    .ok_or_else(|| CompileError::ParseError(None))?,
                 output,
             )?;
             writeln!(output, "  pop rdi")?;

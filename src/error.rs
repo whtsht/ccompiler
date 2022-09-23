@@ -15,7 +15,8 @@ pub enum CompileError {
         stop: Token,
         expect: TokenKind,
     },
-    ParseError,
+    ParseError(Option<&'static str>),
+    Empty,
 }
 
 impl Display for CompileError {
@@ -44,8 +45,9 @@ impl Display for CompileError {
                     expect
                 )
             }
-            Self::ParseError => write!(f, "parse error"),
+            Self::ParseError(msg) => write!(f, "parse error {:?}", msg),
             Self::FmtError(err) => write!(f, "{}", err),
+            Self::Empty => write!(f, "Empty"),
         }
     }
 }

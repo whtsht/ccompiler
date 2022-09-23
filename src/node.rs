@@ -1,4 +1,4 @@
-use crate::error::CResult;
+use crate::error::{CResult, CompileError};
 use crate::token::{TokenKind, TokenStream};
 
 #[derive(Debug, PartialEq)]
@@ -61,7 +61,30 @@ pub fn stmt(tokenstream: &mut TokenStream) -> Option<CResult<Box<Node>>> {
         return None;
     }
 
-    let node = if tokenstream.consume(TokenKind::Return) {
+    // TODO Error handling
+    if tokenstream.consume(TokenKind::If) {
+        if !tokenstream.consume(TokenKind::LRoundBracket) {
+            return Some(Err(CompileError::ParseError(Some("stmt LRoundBracket"))));
+        }
+
+        let lhs = Some(expr(tokenstream).unwrap());
+
+        if !tokenstream.consume(TokenKind::RRoundBracket) {
+            return Some(Err(CompileError::ParseError(Some("stmt RRoundBracket"))));
+        }
+
+        let rhs = Some(stmt(tokenstream).unwrap().unwrap());
+
+        let node = Box::new(Node {
+            kind: TokenKind::If,
+            lhs,
+            rhs,
+        });
+
+        return Some(Ok(node));
+    }
+
+    if tokenstream.consume(TokenKind::Return) {
         let mut node = Box::new(Node {
             kind: TokenKind::Return,
             lhs: None,
@@ -71,12 +94,17 @@ pub fn stmt(tokenstream: &mut TokenStream) -> Option<CResult<Box<Node>>> {
             Ok(node) => node,
             Err(err) => return Some(Err(err)),
         });
-        node
-    } else {
-        match expr(tokenstream) {
-            Ok(node) => node,
-            Err(err) => return Some(Err(err)),
+
+        if let Err(err) = tokenstream.expect(TokenKind::Semicolon) {
+            return Some(Err(err));
         }
+
+        return Some(Ok(node));
+    }
+
+    let node = match expr(tokenstream) {
+        Ok(node) => node,
+        Err(err) => return Some(Err(err)),
     };
 
     if let Err(err) = tokenstream.expect(TokenKind::Semicolon) {
@@ -225,5 +253,19 @@ fn testrunner_node() -> CResult<()> {
     });
     test_node("a = 3;", expect);
 
+    let expect = Box::new(Node {
+        kind: TokenKind::If,
+        lhs: Some(Box::new(Node {
+            kind: TokenKind::Num(1),
+            lhs: None,
+            rhs: None,
+        })),
+        rhs: Some(Box::new(Node {
+            kind: TokenKind::Num(4),
+            lhs: None,
+            rhs: None,
+        })),
+    });
+    test_node("if (1) 4;", expect);
     Ok(())
 }

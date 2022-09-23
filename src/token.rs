@@ -40,6 +40,8 @@ pub enum TokenKind {
     Assign,
     /// Return | return
     Return,
+    /// If,
+    If,
 }
 
 fn digits(mut x: u32) -> u32 {
@@ -68,6 +70,7 @@ impl TokenKind {
             TokenKind::Equal
             | TokenKind::NEqual
             | TokenKind::LessOrEqual
+            | TokenKind::If
             | TokenKind::GreaterOrEqual => 2,
             TokenKind::Num(num) => digits(*num),
             TokenKind::LocalVar { symbol, .. } => symbol.len() as u32,
@@ -95,6 +98,7 @@ impl Display for TokenKind {
             TokenKind::LocalVar { .. } => write!(f, "Local variable"),
             TokenKind::Semicolon => write!(f, "Semicolon"),
             TokenKind::Assign => write!(f, "Assign"),
+            TokenKind::If => write!(f, "If"),
             TokenKind::Return => write!(f, "Return"),
         }
     }
@@ -134,7 +138,7 @@ impl Display for Token {
 fn num_token(s: &str) -> CResult<(u32, usize)> {
     let mut result = (&s[0..1])
         .parse::<u32>()
-        .or_else(|_| Err(CompileError::ParseError))?;
+        .or_else(|_| Err(CompileError::ParseError(Some("Number"))))?;
     if s.len() <= 1 {
         return Ok((result, 1));
     }
@@ -213,6 +217,11 @@ pub fn two_word_token(tokens: &mut Vec<Token>, line: &String, row: usize, col: &
         }
         "<=" => {
             tokens.push(Token::new(*col as u32, row as u32, TokenKind::LessOrEqual));
+            *col += 2;
+            true
+        }
+        "if" => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::If));
             *col += 2;
             true
         }
@@ -325,7 +334,7 @@ pub fn tokenize(source: Vec<String>) -> CResult<TokenStream> {
 
     // If source code is empty, return parse error.
     if source.is_empty() {
-        return Err(CompileError::ParseError);
+        return Err(CompileError::ParseError(Some("A Source code is empty")));
     }
 
     for (row, line) in source.into_iter().enumerate() {
@@ -428,6 +437,25 @@ fn testrunner_tokenize() {
         },
     )];
     test_tokenize("returned;", expect);
+
+    let expect = vec![
+        Token::new(0, 0, TokenKind::If),
+        Token::new(3, 0, TokenKind::LRoundBracket),
+        Token::new(4, 0, TokenKind::Num(1)),
+        Token::new(5, 0, TokenKind::RRoundBracket),
+        Token::new(
+            7,
+            0,
+            TokenKind::LocalVar {
+                symbol: "b".into(),
+                offset: 8,
+            },
+        ),
+        Token::new(9, 0, TokenKind::Assign),
+        Token::new(11, 0, TokenKind::Num(20)),
+        Token::new(13, 0, TokenKind::Semicolon),
+    ];
+    test_tokenize("if (1) b = 20;", expect);
 }
 
 impl TokenStream {
