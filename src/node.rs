@@ -4,9 +4,9 @@ use anyhow::Result;
 
 #[derive(Debug, PartialEq)]
 pub struct Node {
-    kind: TokenKind,
-    lhs: Option<Box<Node>>,
-    rhs: Option<Box<Node>>,
+    pub kind: TokenKind,
+    pub lhs: Option<Box<Node>>,
+    pub rhs: Option<Box<Node>>,
 }
 
 impl Node {
@@ -73,9 +73,22 @@ pub fn stmt(tokenstream: &mut TokenStream) -> Result<Option<Box<Node>>> {
             return Err(CompileError::ParseError(Some("stmt RRoundBracket")))?;
         }
 
-        let rhs = match stmt(tokenstream)? {
+        let then = match stmt(tokenstream)? {
             Some(node) => Some(node),
             None => Err(CompileError::ParseError(Some("expect rhs")))?,
+        };
+
+        let rhs = if tokenstream.consume(TokenKind::Else) {
+            Some(Box::new(Node {
+                kind: TokenKind::Else,
+                lhs: then,
+                rhs: match stmt(tokenstream)? {
+                    Some(node) => Some(node),
+                    None => Err(CompileError::ParseError(Some("expect rhs")))?,
+                },
+            }))
+        } else {
+            then
         };
 
         let node = Box::new(Node {

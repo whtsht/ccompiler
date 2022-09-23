@@ -9,7 +9,7 @@ program
 stmt
     := expr ";"
     | "return" expr ";"
-    | "if" "(" expr ")" stmt
+    | "if" "(" expr ")" stmt ("else" stmt)?
 
 expr
     := assign

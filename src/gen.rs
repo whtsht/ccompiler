@@ -20,21 +20,42 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
     match node.kind() {
         TokenKind::If => {
             gen(
-                node.lhs()
+                node.lhs
                     .as_ref()
                     .ok_or_else(|| CompileError::ParseError(Some("If lhs")))?,
                 output,
             )?;
             writeln!(output, "  pop rax")?;
             writeln!(output, "  cmp rax, 0")?;
-            writeln!(output, "  je .LendA")?;
-            writeln!(output, ".LendA:")?;
-            gen(
-                node.rhs()
-                    .as_ref()
-                    .ok_or_else(|| CompileError::ParseError(Some("If rhs")))?,
-                output,
-            )?;
+
+            let rhs = node
+                .rhs
+                .as_ref()
+                .ok_or_else(|| CompileError::ParseError(Some("If rhs")))?;
+
+            if rhs.kind == TokenKind::Else {
+                writeln!(output, "  je .LelseA")?;
+                gen(
+                    rhs.lhs
+                        .as_ref()
+                        .ok_or_else(|| CompileError::ParseError(Some("")))?,
+                    output,
+                )?;
+                writeln!(output, "  jmp .LendA")?;
+                writeln!(output, ".LelseA:")?;
+                gen(
+                    rhs.rhs
+                        .as_ref()
+                        .ok_or_else(|| CompileError::ParseError(Some("")))?,
+                    output,
+                )?;
+                writeln!(output, ".LendA:")?;
+            } else {
+                writeln!(output, "  je .LendA")?;
+                writeln!(output, ".LendA:")?;
+                gen(rhs, output)?;
+            }
+
             return Ok(());
         }
         TokenKind::Num(num) => {
@@ -50,7 +71,7 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
         }
         TokenKind::Return => {
             gen(
-                node.lhs()
+                node.lhs
                     .as_ref()
                     .ok_or_else(|| CompileError::ParseError(None))?,
                 output,
@@ -63,13 +84,13 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
         }
         TokenKind::Assign => {
             gen_lval(
-                node.lhs()
+                node.lhs
                     .as_ref()
                     .ok_or_else(|| CompileError::ParseError(None))?,
                 output,
             )?;
             gen(
-                node.rhs()
+                node.rhs
                     .as_ref()
                     .ok_or_else(|| CompileError::ParseError(None))?,
                 output,
@@ -83,8 +104,19 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
         _ => {}
     }
 
-    gen(node.lhs().unwrap(), output)?;
-    gen(node.rhs().unwrap(), output)?;
+    gen(
+        node.lhs
+            .as_ref()
+            .ok_or_else(|| CompileError::ParseError(None))?,
+        output,
+    )?;
+
+    gen(
+        node.rhs
+            .as_ref()
+            .ok_or_else(|| CompileError::ParseError(None))?,
+        output,
+    )?;
 
     writeln!(output, "  pop rdi")?;
     writeln!(output, "  pop rax")?;

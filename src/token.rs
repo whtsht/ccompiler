@@ -41,8 +41,10 @@ pub enum TokenKind {
     Assign,
     /// Return | return
     Return,
-    /// If,
+    /// If | if
     If,
+    /// Else | else
+    Else,
 }
 
 fn digits(mut x: u32) -> u32 {
@@ -75,6 +77,7 @@ impl TokenKind {
             | TokenKind::GreaterOrEqual => 2,
             TokenKind::Num(num) => digits(*num),
             TokenKind::LocalVar { symbol, .. } => symbol.len() as u32,
+            TokenKind::Else => 4,
             TokenKind::Return => 6,
         }
     }
@@ -101,6 +104,7 @@ impl Display for TokenKind {
             TokenKind::Assign => write!(f, "Assign: ="),
             TokenKind::If => write!(f, "If"),
             TokenKind::Return => write!(f, "Return"),
+            TokenKind::Else => write!(f, "Else"),
         }
     }
 }
@@ -178,11 +182,27 @@ pub struct TokenStream {
     stream: Peekable<IntoIter<Token>>,
 }
 
-pub fn return_token(tokens: &mut Vec<Token>, line: &String, row: usize, col: &mut usize) -> bool {
+pub fn six_word_token(tokens: &mut Vec<Token>, line: &String, row: usize, col: &mut usize) -> bool {
     match &line[*col..*col + 6] {
         "return" if !is_alnum(line[*col + 6..].chars().next().unwrap()) => {
             tokens.push(Token::new(*col as u32, row as u32, TokenKind::Return));
             *col += 6;
+            true
+        }
+        _ => four_word_token(tokens, line, row, col),
+    }
+}
+
+pub fn four_word_token(
+    tokens: &mut Vec<Token>,
+    line: &String,
+    row: usize,
+    col: &mut usize,
+) -> bool {
+    match &line[*col..*col + 4] {
+        "else" if !is_alnum(line[*col + 4..].chars().next().unwrap()) => {
+            tokens.push(Token::new(*col as u32, row as u32, TokenKind::Else));
+            *col += 4;
             true
         }
         _ => two_word_token(tokens, line, row, col),
@@ -339,8 +359,9 @@ pub fn tokenize(source: Vec<String>) -> Result<TokenStream> {
             let result = match max - col {
                 0 => break,
                 1 => one_word_token(&mut tokens, &line, row, &mut col),
-                2..=6 => two_word_token(&mut tokens, &line, row, &mut col),
-                _ => return_token(&mut tokens, &line, row, &mut col),
+                2..=4 => two_word_token(&mut tokens, &line, row, &mut col),
+                5..=6 => four_word_token(&mut tokens, &line, row, &mut col),
+                _ => six_word_token(&mut tokens, &line, row, &mut col),
             };
 
             if !result {
@@ -451,6 +472,19 @@ fn testrunner_tokenize() {
         Token::new(13, 0, TokenKind::Semicolon),
     ];
     test_tokenize("if (1) b = 20;", expect);
+
+    let expect = vec![
+        Token::new(0, 0, TokenKind::If),
+        Token::new(3, 0, TokenKind::LRoundBracket),
+        Token::new(4, 0, TokenKind::Num(1)),
+        Token::new(5, 0, TokenKind::RRoundBracket),
+        Token::new(7, 0, TokenKind::Num(4)),
+        Token::new(8, 0, TokenKind::Semicolon),
+        Token::new(10, 0, TokenKind::Else),
+        Token::new(15, 0, TokenKind::Num(5)),
+        Token::new(16, 0, TokenKind::Semicolon),
+    ];
+    test_tokenize("if (1) 4; else 5;", expect);
 }
 
 impl TokenStream {
