@@ -230,7 +230,7 @@ pub fn primary(tokenstream: &mut TokenStream) -> Result<Box<Node>> {
 fn testrunner_node() -> Result<()> {
     use crate::token::tokenize;
     let test_node = |source: &str, expect: Box<Node>| {
-        let mut tokenstream: TokenStream = tokenize(vec![source.to_string()]).unwrap();
+        let (mut tokenstream, _) = tokenize(vec![source.to_string()]).unwrap();
         let stmt = stmt(&mut tokenstream).unwrap().unwrap();
 
         assert_eq!(stmt, expect, "{}", source);

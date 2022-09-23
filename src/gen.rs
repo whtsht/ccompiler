@@ -160,7 +160,7 @@ pub fn gen(node: &Box<Node>, output: &mut String) -> Result<()> {
 pub fn compile_from_source(source: Vec<String>) -> Result<String> {
     let mut output = String::new();
 
-    let mut ts = tokenize(source)?;
+    let (mut ts, variable_len) = tokenize(source)?;
     let program = program(&mut ts)?;
 
     writeln!(output, ".intel_syntax noprefix")?;
@@ -169,7 +169,7 @@ pub fn compile_from_source(source: Vec<String>) -> Result<String> {
 
     writeln!(output, "  push rbp")?;
     writeln!(output, "  mov rbp, rsp")?;
-    writeln!(output, "  sub rsp, 208")?; // = 26 * 8
+    writeln!(output, "  sub rsp, {}", variable_len * 8)?;
 
     for node in program {
         gen(&node, &mut output)?;

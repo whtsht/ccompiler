@@ -343,7 +343,7 @@ fn other_word_token(
     Ok(())
 }
 
-pub fn tokenize(source: Vec<String>) -> Result<TokenStream> {
+pub fn tokenize(source: Vec<String>) -> Result<(TokenStream, u32)> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut variables: HashMap<String, u32> = HashMap::new();
 
@@ -370,18 +370,21 @@ pub fn tokenize(source: Vec<String>) -> Result<TokenStream> {
         }
     }
 
-    Ok(TokenStream {
-        token: tokens[0].clone(),
-        stream: tokens.into_iter().peekable(),
-    })
+    Ok((
+        TokenStream {
+            token: tokens[0].clone(),
+            stream: tokens.into_iter().peekable(),
+        },
+        variables.len() as u32,
+    ))
 }
 
 #[test]
 fn testrunner_tokenize() {
     let test_tokenize = |source: &str, expect: Vec<Token>| {
-        let token_stream: TokenStream = tokenize(vec![source.to_string()]).unwrap();
+        let (tokenstream, _) = tokenize(vec![source.to_string()]).unwrap();
 
-        for (expect, result) in expect.into_iter().zip(token_stream.stream) {
+        for (expect, result) in expect.into_iter().zip(tokenstream.stream) {
             assert_eq!(result, expect, "{}", source);
         }
     };
